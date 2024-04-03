@@ -1,4 +1,5 @@
 #include "engine.h"
+#include "engine_utils.h"
 
 #include <glm/glm.hpp>
 #include <vulkan/vulkan_core.h>
@@ -20,12 +21,19 @@ void resizeCallback(GLFWwindow* window, int width, int height);
 
 Engine::~Engine() {
     vkDeviceWaitIdle(device);
-
-    vkDestroySwapchainKHR(device, swapchain, nullptr);
+    vkDestroySwapchainKHR(device, swapchain, pAllocator);
 
     // destroy swapchain resources
     for (auto &swapchainImageView : swapchainImageViews)
-	    vkDestroyImageView(device, swapchainImageView, nullptr);
+	    vkDestroyImageView(device, swapchainImageView, pAllocator);
+
+    for (auto frameData: frames)
+    {
+	vkDestroyCommandPool(device, frameData.commandPool, pAllocator);
+	vkDestroyFence(device, frameData.renderFence, pAllocator);
+	vkDestroySemaphore(device, frameData.renderSemaphore, pAllocator);
+	vkDestroySemaphore(device, frameData.swapchainSemaphore, pAllocator);
+    }
 
     vmaDestroyAllocator(allocator);
     vkDestroyDevice(device, nullptr);
@@ -85,7 +93,7 @@ void Engine::initVulkan() {
     features12.descriptorIndexing = true;
 
     //use vkbootstrap to select a gpu.
-    //We want a gpu that can write to the glfw surface 
+    //We want a gpu that can write to the glfw surface
     //and supports vulkan 1.3 with the correct features
     vkb::PhysicalDeviceSelector selector{ vkb_inst };
     vkb::PhysicalDevice physicalDevice = selector
@@ -154,6 +162,44 @@ void Engine::initSwapchain()
 }
 
 
+void Engine::initFrameData()
+{
+    //create a command pool for commands submitted to the graphics queue.
+    //we also want the pool to allow for resetting of individual command buffers
+    VkCommandPoolCreateInfo commandPoolInfo =  {};
+    commandPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    commandPoolInfo.pNext = nullptr;
+    commandPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    commandPoolInfo.queueFamilyIndex = graphicsQueueFamily;
+
+    for (auto frame : frames)
+    {
+	VK_CHECK(vkCreateCommandPool(device, &commandPoolInfo, nullptr, &frame.commandPool));
+
+	// allocate the default command buffer that we will use for rendering
+	VkCommandBufferAllocateInfo cmdAllocInfo = {};
+	cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cmdAllocInfo.pNext = nullptr;
+	cmdAllocInfo.commandPool = frame.commandPool;
+	cmdAllocInfo.commandBufferCount = 1;
+	cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	VK_CHECK(vkAllocateCommandBuffers(device, &cmdAllocInfo, &frame.commandBuffer));
+	
+	VkSemaphoreCreateInfo semaforeCI = {};
+	semaforeCI.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	semaforeCI.pNext = nullptr;
+	VK_CHECK(vkCreateSemaphore(device, &semaforeCI, pAllocator, &frame.renderSemaphore));
+	VK_CHECK(vkCreateSemaphore(device, &semaforeCI, pAllocator, &frame.swapchainSemaphore));
+
+	VkFenceCreateInfo fenceCI = {};
+	fenceCI.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceCI.pNext = nullptr;
+	fenceCI.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+	VK_CHECK(vkCreateFence(device, &fenceCI, pAllocator, &frame.renderFence));
+    }
+
+}
+
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     Engine* engine = (Engine *)glfwGetWindowUserPointer(window);
     engine->bQuit = true;
@@ -166,6 +212,9 @@ void resizeCallback(GLFWwindow* window, int width, int height) {
     self->height = height;
 }
 
+void Engine::draw()
+{
+}
 
 void Engine::run()
 {
@@ -174,5 +223,6 @@ void Engine::run()
     while (!bQuit)
     {
 	glfwPollEvents();
+	draw();
     }
 }

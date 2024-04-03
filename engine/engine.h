@@ -11,6 +11,13 @@
 constexpr int FRAME_OVERLAP = 2;
 
 
+struct FrameData {
+    VkCommandBuffer commandBuffer;
+    VkCommandPool commandPool;
+    VkSemaphore swapchainSemaphore, renderSemaphore;
+    VkFence renderFence;
+};
+
 
 class Engine {
     public:
@@ -20,11 +27,14 @@ class Engine {
 	VkDevice device;
 	VkSwapchainKHR swapchain;
 	VkFormat swapchainImageFormat;
+
+	VkAllocationCallbacks *pAllocator= nullptr;
 	VmaAllocator allocator;
 
 	std::vector<VkImage> swapchainImages;
 	std::vector<VkImageView> swapchainImageViews;
 	VkExtent2D swapchainExtent;
+
 
 	int width = 640;
 	int height = 800;
@@ -43,9 +53,13 @@ class Engine {
 	VkQueue graphicsQueue;
 	uint32_t graphicsQueueFamily;
 
+	FrameData frames[FRAME_OVERLAP];
+
 	void initWindow();
 	void createSurface();
 	void initVulkan();
 	void initSwapchain();
+	void initFrameData();
+	void draw();
 
 };
