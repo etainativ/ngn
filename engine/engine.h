@@ -21,6 +21,14 @@ struct FrameData {
     VkFence renderFence;
 };
 
+struct Image {
+    VkImage image;
+    VkImageView view;
+    VmaAllocation allocation;
+    VkExtent3D imageExtent;
+    VkFormat imageFormat;
+};
+
 
 class Engine {
     public:
@@ -37,10 +45,7 @@ class Engine {
 	std::vector<VkImage> swapchainImages;
 	std::vector<VkImageView> swapchainImageViews;
 	VkExtent2D swapchainExtent;
-
-
-	int width = 640;
-	int height = 800;
+	VkExtent2D windowExtent = { 640, 800 };
 	bool bQuit = false;
 	void run();
 
@@ -57,9 +62,9 @@ class Engine {
 	uint32_t graphicsQueueFamily;
 
 	FrameData frames[FRAME_OVERLAP];
+	Image drawImage;
 
 	std::deque<std::function<void()>> deletors;
-
 	void onDestruct(std::function<void()>&& function) {
 		deletors.push_back(function); }
 
@@ -68,6 +73,7 @@ class Engine {
 	void initVulkan();
 	void initSwapchain();
 	void initFrameData();
+	void initDrawImage();
 	void draw();
 
 };

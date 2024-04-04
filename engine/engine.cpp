@@ -17,6 +17,40 @@ const bool bUseValidationLayers = true;
 #endif
 
 // UTIL
+void copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize)
+{
+	VkImageBlit2 blitRegion{ .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2, .pNext = nullptr };
+
+	blitRegion.srcOffsets[1].x = srcSize.width;
+	blitRegion.srcOffsets[1].y = srcSize.height;
+	blitRegion.srcOffsets[1].z = 1;
+
+	blitRegion.dstOffsets[1].x = dstSize.width;
+	blitRegion.dstOffsets[1].y = dstSize.height;
+	blitRegion.dstOffsets[1].z = 1;
+
+	blitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	blitRegion.srcSubresource.baseArrayLayer = 0;
+	blitRegion.srcSubresource.layerCount = 1;
+	blitRegion.srcSubresource.mipLevel = 0;
+
+	blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	blitRegion.dstSubresource.baseArrayLayer = 0;
+	blitRegion.dstSubresource.layerCount = 1;
+	blitRegion.dstSubresource.mipLevel = 0;
+
+	VkBlitImageInfo2 blitInfo{ .sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2, .pNext = nullptr };
+	blitInfo.dstImage = destination;
+	blitInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	blitInfo.srcImage = source;
+	blitInfo.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	blitInfo.filter = VK_FILTER_LINEAR;
+	blitInfo.regionCount = 1;
+	blitInfo.pRegions = &blitRegion;
+
+	vkCmdBlitImage2(cmd, &blitInfo);
+}
+
 void transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout)
 {
     VkImageMemoryBarrier2 imageBarrier {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
@@ -70,13 +104,15 @@ Engine::Engine() {
     initVulkan();
     initSwapchain();
     initFrameData();
+    initDrawImage();
 }
 
 
 void Engine::initWindow() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    window = glfwCreateWindow(width, height, "Vulkan", nullptr, nullptr);
+    window = glfwCreateWindow(
+	    windowExtent.width, windowExtent.height, "Vulkan", nullptr, nullptr);
     glfwSetWindowUserPointer(window, this);
     glfwSetFramebufferSizeCallback(window, resizeCallback);
     onDestruct([&]() {
@@ -180,7 +216,7 @@ void Engine::initSwapchain()
 		.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
 	//use vsync present mode
 	.set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
-	.set_desired_extent(width, height)
+	.set_desired_extent(windowExtent.width, windowExtent.height)
 	.add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
 	.build()
 	.value();
@@ -240,6 +276,64 @@ void Engine::initFrameData()
 
 }
 
+
+void Engine::initDrawImage() {
+    VkExtent3D drawImageExtent = {
+	windowExtent.width,
+	windowExtent.height,
+	1
+    };
+
+    //hardcoding the draw format to 32 bit float
+    drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+    drawImage.imageExtent = drawImageExtent;
+
+    VkImageCreateInfo imageCI = {};
+    imageCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCI.pNext = nullptr;
+    imageCI.imageType = VK_IMAGE_TYPE_2D;
+    imageCI.format = drawImage.imageFormat;
+    imageCI.extent = drawImage.imageExtent;
+    imageCI.mipLevels = 1;
+    imageCI.arrayLayers = 1;
+
+    //for MSAA. we will not be using it by default, so default it to 1 sample per pixel.
+    imageCI.samples = VK_SAMPLE_COUNT_1_BIT;
+
+    //optimal tiling, which means the image is stored on the best gpu format
+    imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageCI.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+	| VK_IMAGE_USAGE_TRANSFER_DST_BIT
+	| VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT // for graphical shader
+	| VK_IMAGE_USAGE_STORAGE_BIT; // for compute shader 
+
+    //for the draw image, we want to allocate it from gpu local memory
+    VmaAllocationCreateInfo rimg_allocinfo = {};
+    rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    //allocate and create the image
+    vmaCreateImage(allocator, &imageCI, &rimg_allocinfo, &drawImage.image, &drawImage.allocation, nullptr);
+    onDestruct([&]() {vmaDestroyImage(allocator, drawImage.image, drawImage.allocation);});
+
+    VkImageViewCreateInfo imageViewCI = {};
+    imageViewCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewCI.pNext = nullptr;
+
+    imageViewCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    imageViewCI.image = drawImage.image;
+    imageViewCI.format = drawImage.imageFormat;
+    imageViewCI.subresourceRange.baseMipLevel = 0;
+    imageViewCI.subresourceRange.levelCount = 1;
+    imageViewCI.subresourceRange.baseArrayLayer = 0;
+    imageViewCI.subresourceRange.layerCount = 1;
+    imageViewCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+    VK_CHECK(vkCreateImageView(device, &imageViewCI, pAllocator, &drawImage.view));
+    onDestruct([=]() { vkDestroyImageView(device, drawImage.view, pAllocator); });
+}
+
+
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     Engine* engine = (Engine *)glfwGetWindowUserPointer(window);
     engine->bQuit = true;
@@ -248,8 +342,8 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 
 void resizeCallback(GLFWwindow* window, int width, int height) {
     Engine *self = (Engine*)glfwGetWindowUserPointer(window);
-    self->width = width;
-    self->height = height;
+    self->windowExtent.width = width;
+    self->windowExtent.height = height;
 }
 
 void Engine::draw()
@@ -282,8 +376,9 @@ void Engine::draw()
     //start the command buffer recording
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
-    //make the swapchain image into writeable mode before rendering
-    transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    // transition our main draw image into general layout so we can write into it
+    // we will overwrite it all so we dont care about what was the older layout
+    transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
     //make a clear-color from frame number. This will flash with a 120 frame period.
     VkClearColorValue clearValue;
@@ -298,7 +393,24 @@ void Engine::draw()
     clearRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
 
     //clear image
-    vkCmdClearColorImage(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+    vkCmdClearColorImage(cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+
+    //transition the draw image and the swapchain image into their correct transfer layouts
+    transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+    // execute a copy from the draw image into the swapchain
+    VkExtent2D imageExtent = {
+	.width = drawImage.imageExtent.width,
+	.height = drawImage.imageExtent.height};
+    copy_image_to_image(cmd, drawImage.image, swapchainImages[swapchainImageIndex], imageExtent, swapchainExtent);
+
+    // set swapchain image layout to Present so we can show it on the screen
+    transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+    //finalize the command buffer (we can no longer add commands, but it can now be executed)
+    //make the swapchain image into writeable mode before rendering
+    transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
     //make the swapchain image into presentable mode
     transition_image(cmd, swapchainImages[swapchainImageIndex],VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
@@ -306,9 +418,7 @@ void Engine::draw()
     //finalize the command buffer (we can no longer add commands, but it can now be executed)
     VK_CHECK(vkEndCommandBuffer(cmd));
 
-
     // SUBMIT
-
     VkCommandBufferSubmitInfo commandBufferSubmitInfo{};
     commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
     commandBufferSubmitInfo.pNext = nullptr;
