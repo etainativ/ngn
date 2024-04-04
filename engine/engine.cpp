@@ -1,5 +1,6 @@
 #include "engine.h"
 
+#include <cstdint>
 #include <glm/common.hpp>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan_core.h>
@@ -10,13 +11,68 @@
 //bootstrap library
 #include "VkBootstrap.h"
 
+// imgui
+#include "imgui.h"
+#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_vulkan.h"
+
 #ifdef NDEBUG
 const bool bUseValidationLayers = false;
 #else
 const bool bUseValidationLayers = true;
 #endif
 
+const VkBool32 wait = 1000000000;
+
 // UTIL
+VkBool32 getSupportedDepthFormat(VkPhysicalDevice physicalDevice, VkFormat *depthFormat)
+{
+    // Since all depth formats may be optional, we need to find a suitable depth format to use
+    // Start with the highest precision packed format
+    std::vector<VkFormat> formatList = {
+	VK_FORMAT_D32_SFLOAT_S8_UINT,
+	VK_FORMAT_D32_SFLOAT,
+	VK_FORMAT_D24_UNORM_S8_UINT,
+	VK_FORMAT_D16_UNORM_S8_UINT,
+	VK_FORMAT_D16_UNORM
+    };
+
+    for (auto& format : formatList)
+    {
+	VkFormatProperties formatProps;
+	vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProps);
+	if (formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+	{
+	    *depthFormat = format;
+	    return 0;
+	}
+    }
+
+    return 1;
+}
+
+VkBool32 getSupportedDepthStencilFormat(VkPhysicalDevice physicalDevice, VkFormat* depthStencilFormat)
+{
+    std::vector<VkFormat> formatList = {
+	VK_FORMAT_D32_SFLOAT_S8_UINT,
+	VK_FORMAT_D24_UNORM_S8_UINT,
+	VK_FORMAT_D16_UNORM_S8_UINT,
+    };
+
+    for (auto& format : formatList)
+    {
+	VkFormatProperties formatProps;
+	vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProps);
+	if (formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+	{
+	    *depthStencilFormat = format;
+	    return 0;
+	}
+    }
+
+    return 1;
+}
+
 void copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize)
 {
 	VkImageBlit2 blitRegion{ .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2, .pNext = nullptr };
@@ -102,9 +158,12 @@ Engine::~Engine() {
 Engine::Engine() {
     initWindow();
     initVulkan();
+    initFormats();
     initSwapchain();
     initFrameData();
     initDrawImage();
+    initImCommand();
+    initImgui();
 }
 
 
@@ -191,6 +250,12 @@ void Engine::initVulkan() {
 	    vkDestroySurfaceKHR(instance, surface, nullptr);
 	    vkDestroyInstance(instance, nullptr);
 	});
+}
+
+
+void Engine::initFormats() {
+	VK_CHECK(getSupportedDepthFormat(phyDevice, &depthFormat));
+	VK_CHECK(getSupportedDepthStencilFormat(phyDevice, &stencilFormat));
 }
 
 void Engine::createSurface() {
@@ -334,6 +399,132 @@ void Engine::initDrawImage() {
 }
 
 
+void Engine::initImCommand() {
+    VkFenceCreateInfo fenceCI = {};
+    fenceCI.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceCI.pNext = nullptr;
+    fenceCI.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    vkCreateFence(device, &fenceCI, pAllocator, &immFence);
+    onDestruct([&](){vkDestroyFence(device, immFence, pAllocator);});
+
+    VkCommandPoolCreateInfo commandPoolCI = {};
+    commandPoolCI.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    commandPoolCI.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    commandPoolCI.queueFamilyIndex = graphicsQueueFamily;
+    vkCreateCommandPool(device, &commandPoolCI, pAllocator, &immCommandPool);
+    onDestruct([&](){vkDestroyCommandPool(device, immCommandPool, pAllocator);});
+
+    VkCommandBufferAllocateInfo cmdAllocInfo = {};
+    cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmdAllocInfo.pNext = nullptr;
+    cmdAllocInfo.commandPool = immCommandPool;
+    cmdAllocInfo.commandBufferCount = 1;
+    cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    VK_CHECK(vkAllocateCommandBuffers(device, &cmdAllocInfo, &immCommandBuffer));
+}
+
+
+void Engine::initImgui() {
+    // 1: create descriptor pool for IMGUI
+    //  the size of the pool is very oversize, but it's copied from imgui demo
+    //  itself.
+    VkDescriptorPoolSize pool_sizes[] = { { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+	{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }};
+
+    VkDescriptorPoolCreateInfo pool_info = {};
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    pool_info.maxSets = 1;
+    pool_info.poolSizeCount = (uint32_t)std::size(pool_sizes);
+    pool_info.pPoolSizes = pool_sizes;
+
+    VkDescriptorPool imguiPool;
+    VK_CHECK(vkCreateDescriptorPool(device, &pool_info, nullptr, &imguiPool));
+
+    // this initializes the core structures of imgui
+    ImGui::CreateContext();
+
+    // this initializes imgui for SDL
+    ImGui_ImplGlfw_InitForVulkan(window, true);
+
+    VkPipelineRenderingCreateInfoKHR pipelineRenderingCI {};
+    pipelineRenderingCI.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+    pipelineRenderingCI.viewMask = 0;
+    pipelineRenderingCI.colorAttachmentCount = 1;
+    pipelineRenderingCI.pColorAttachmentFormats = &swapchainImageFormat;
+    pipelineRenderingCI.depthAttachmentFormat = depthFormat;
+    pipelineRenderingCI.stencilAttachmentFormat = stencilFormat;
+
+    // this initializes imgui for Vulkan
+    ImGui_ImplVulkan_InitInfo initInfo = {};
+    initInfo.Instance = instance;
+    initInfo.PhysicalDevice = phyDevice;
+    initInfo.Device = device;
+    initInfo.Queue = graphicsQueue;
+    initInfo.DescriptorPool = imguiPool;
+    initInfo.MinImageCount = 3;
+    initInfo.ImageCount = 3;
+    initInfo.Allocator = pAllocator;
+    initInfo.UseDynamicRendering = true;
+    initInfo.PipelineRenderingCreateInfo = pipelineRenderingCI;
+
+    initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+    ImGui_ImplVulkan_Init(&initInfo);
+
+    // execute a gpu command to upload imgui font textures
+    immediateSubmit([&](VkCommandBuffer cmd) { ImGui_ImplVulkan_CreateFontsTexture(); });
+    //ImGui_ImplVulkan_DestroyFontsTexture();
+
+    // add the destroy the imgui created structures
+    onDestruct([&]() { 
+	    ImGui_ImplVulkan_Shutdown();
+	    ImGui_ImplGlfw_Shutdown();
+	    ImGui::DestroyContext();});
+}
+
+void Engine::immediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function) {
+    VK_CHECK(vkResetFences(device, 1, &immFence));
+    VK_CHECK(vkResetCommandBuffer(immCommandBuffer, 0));
+
+    VkCommandBuffer cmd = immCommandBuffer;
+
+    VkCommandBufferBeginInfo cmdBeginInfo = {};
+    cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    cmdBeginInfo.pNext = nullptr;
+    cmdBeginInfo.pInheritanceInfo = nullptr;
+    cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+
+    function(cmd);
+
+    VK_CHECK(vkEndCommandBuffer(cmd));
+
+    VkCommandBufferSubmitInfo commandBufferSubmitInfo{};
+    commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+    commandBufferSubmitInfo.pNext = nullptr;
+    commandBufferSubmitInfo.commandBuffer = cmd;
+    commandBufferSubmitInfo.deviceMask = 0;
+
+    VkSubmitInfo2 submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submitInfo.pNext = nullptr;
+    submitInfo.waitSemaphoreInfoCount = 0;
+    submitInfo.pWaitSemaphoreInfos = nullptr;
+    submitInfo.signalSemaphoreInfoCount = 0;
+    submitInfo.pSignalSemaphoreInfos = nullptr;
+    submitInfo.commandBufferInfoCount = 1;
+    submitInfo.pCommandBufferInfos = &commandBufferSubmitInfo;
+
+
+    // submit command buffer to the queue and execute it.
+    //  _renderFence will now block until the graphic commands finish execution
+    VK_CHECK(vkQueueSubmit2(graphicsQueue, 1, &submitInfo, immFence));
+
+    VK_CHECK(vkWaitForFences(device, 1, &immFence, true, wait));
+}
+
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     Engine* engine = (Engine *)glfwGetWindowUserPointer(window);
     engine->bQuit = true;
@@ -348,7 +539,6 @@ void resizeCallback(GLFWwindow* window, int width, int height) {
 
 void Engine::draw()
 {
-    const VkBool32 wait = 1000000000;
     FrameData& currFrame = frames[frameNumber % FRAME_OVERLAP];
 
     VK_CHECK(vkWaitForFences(device, 1, &currFrame.renderFence, true, wait));
@@ -369,7 +559,6 @@ void Engine::draw()
     VkCommandBufferBeginInfo cmdBeginInfo {};
     cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cmdBeginInfo.pNext = nullptr;
-
     cmdBeginInfo.pInheritanceInfo = nullptr;
     cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
@@ -472,11 +661,22 @@ void Engine::draw()
 
 void Engine::run()
 {
+    bool showDemoWindow;
     glfwSetKeyCallback(window, keyCallback);
     //main loop
     while (!bQuit)
     {
 	glfwPollEvents();
+	// imgui new frame
+	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+
+	//some imgui UI to test
+	ImGui::ShowDemoWindow(&showDemoWindow);
+
+	//make imgui calculate internal draw structures
+	ImGui::Render();
 	draw();
     }
 }

@@ -10,7 +10,6 @@
 #include <functional>
 
 
-
 constexpr int FRAME_OVERLAP = 2;
 
 
@@ -45,7 +44,7 @@ class Engine {
 	std::vector<VkImage> swapchainImages;
 	std::vector<VkImageView> swapchainImageViews;
 	VkExtent2D swapchainExtent;
-	VkExtent2D windowExtent = { 640, 800 };
+	VkExtent2D windowExtent = { 1200, 960 };
 	bool bQuit = false;
 	void run();
 
@@ -58,6 +57,10 @@ class Engine {
 	VkSurfaceKHR surface;
 	VkPhysicalDevice phyDevice = VK_NULL_HANDLE;
 
+	// Formats
+	VkFormat depthFormat;
+	VkFormat stencilFormat;
+
 	VkQueue graphicsQueue;
 	uint32_t graphicsQueueFamily;
 
@@ -68,12 +71,24 @@ class Engine {
 	void onDestruct(std::function<void()>&& function) {
 		deletors.push_back(function); }
 
+	// immediate submit structures
+	VkFence immFence;
+	VkCommandBuffer immCommandBuffer;
+	VkCommandPool immCommandPool;
+	void immediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
+
+	// imGUI
+	VkDescriptorPool imguiPool;
+
 	void initWindow();
 	void createSurface();
 	void initVulkan();
+	void initFormats();
 	void initSwapchain();
 	void initFrameData();
 	void initDrawImage();
+	void initImCommand();
+	void initImgui();
 	void draw();
 
 };
