@@ -6,6 +6,9 @@
 
 #include "vk_mem_alloc.h"
 #include <vector>
+#include <deque>
+#include <functional>
+
 
 
 constexpr int FRAME_OVERLAP = 2;
@@ -54,6 +57,11 @@ class Engine {
 	uint32_t graphicsQueueFamily;
 
 	FrameData frames[FRAME_OVERLAP];
+
+	std::deque<std::function<void()>> deletors;
+
+	void onDestruct(std::function<void()>&& function) {
+		deletors.push_back(function); }
 
 	void initWindow();
 	void createSurface();

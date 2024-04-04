@@ -58,31 +58,10 @@ void resizeCallback(GLFWwindow* window, int width, int height);
 
 Engine::~Engine() {
     vkDeviceWaitIdle(device);
-    vkDestroySwapchainKHR(device, swapchain, pAllocator);
-
     // destroy swapchain resources
-    for (auto &swapchainImageView : swapchainImageViews)
-	vkDestroyImageView(device, swapchainImageView, pAllocator);
-
-    for (auto &frameData: frames)
-    {
-	vkDestroyCommandPool(device, frameData.commandPool, pAllocator);
-	vkDestroyFence(device, frameData.renderFence, pAllocator);
-	vkDestroySemaphore(device, frameData.renderSemaphore, pAllocator);
-	vkDestroySemaphore(device, frameData.swapchainSemaphore, pAllocator);
+    for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
+	(*it)(); //call functors
     }
-
-    vmaDestroyAllocator(allocator);
-    vkDestroyDevice(device, nullptr);
-    if (bUseValidationLayers) {
-	auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)
-	    vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-	func(instance, debugMessenger, nullptr);
-    }
-    vkDestroySurfaceKHR(instance, surface, nullptr);
-    vkDestroyInstance(instance, nullptr);
-    glfwDestroyWindow(window);
-    glfwTerminate();
 }
 
 
@@ -100,6 +79,9 @@ void Engine::initWindow() {
     window = glfwCreateWindow(width, height, "Vulkan", nullptr, nullptr);
     glfwSetWindowUserPointer(window, this);
     glfwSetFramebufferSizeCallback(window, resizeCallback);
+    onDestruct([&]() {
+	    glfwDestroyWindow(window);
+	    glfwTerminate();});
 }
 
 void Engine::initVulkan() {
@@ -162,6 +144,17 @@ void Engine::initVulkan() {
     allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
     vmaCreateAllocator(&allocatorInfo, &allocator);
 
+    onDestruct([&]() {
+	    vmaDestroyAllocator(allocator);
+	    vkDestroyDevice(device, nullptr);
+	    if (bUseValidationLayers) {
+		auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)
+		vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+		func(instance, debugMessenger, nullptr);
+	    }
+	    vkDestroySurfaceKHR(instance, surface, nullptr);
+	    vkDestroyInstance(instance, nullptr);
+	});
 }
 
 void Engine::createSurface() {
@@ -197,6 +190,10 @@ void Engine::initSwapchain()
     swapchain = vkbSwapchain.swapchain;
     swapchainImages = vkbSwapchain.get_images().value();
     swapchainImageViews = vkbSwapchain.get_image_views().value();
+
+    onDestruct([&]() {vkDestroySwapchainKHR(device, swapchain, pAllocator);});
+    for (auto &swapchainImageView : swapchainImageViews)
+	onDestruct([&]() {vkDestroyImageView(device, swapchainImageView, pAllocator);});
 }
 
 
@@ -234,6 +231,11 @@ void Engine::initFrameData()
 	fenceCI.pNext = nullptr;
 	fenceCI.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 	VK_CHECK(vkCreateFence(device, &fenceCI, pAllocator, &frame.renderFence));
+
+	onDestruct([&]() { vkDestroySemaphore(device, frame.renderSemaphore, pAllocator);});
+	onDestruct([&]() { vkDestroySemaphore(device, frame.swapchainSemaphore, pAllocator);});
+	onDestruct([&]() { vkDestroyFence(device, frame.renderFence, pAllocator);});
+	onDestruct([&]() { vkDestroyCommandPool(device, frame.commandPool, pAllocator);});
     }
 
 }
