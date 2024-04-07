@@ -9,6 +9,7 @@
 #include <deque>
 #include <functional>
 
+#include "backends/imgui_impl_vulkan.h"
 
 constexpr int FRAME_OVERLAP = 2;
 

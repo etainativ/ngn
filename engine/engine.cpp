@@ -14,7 +14,6 @@
 // imgui
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
-#include "backends/imgui_impl_vulkan.h"
 
 #ifdef NDEBUG
 const bool bUseValidationLayers = false;
@@ -25,6 +24,14 @@ const bool bUseValidationLayers = true;
 const VkBool32 wait = 1000000000;
 
 // UTIL
+static void check_vk_result(VkResult err)
+{
+    if (err == 0)
+        return;
+    fprintf(stderr, "[vulkan] Error: VkResult = %d\n", err);
+    if (err < 0)
+        abort();
+}
 VkBool32 getSupportedDepthFormat(VkPhysicalDevice physicalDevice, VkFormat *depthFormat)
 {
     // Since all depth formats may be optional, we need to find a suitable depth format to use
@@ -437,14 +444,13 @@ void Engine::initImgui() {
     pool_info.maxSets = 1;
     pool_info.poolSizeCount = (uint32_t)std::size(pool_sizes);
     pool_info.pPoolSizes = pool_sizes;
-
-    VkDescriptorPool imguiPool;
-    VK_CHECK(vkCreateDescriptorPool(device, &pool_info, nullptr, &imguiPool));
+    VK_CHECK(vkCreateDescriptorPool(device, &pool_info, pAllocator, &imguiPool));
+    onDestruct([&](){ vkDestroyDescriptorPool(device, imguiPool, pAllocator); });
 
     // this initializes the core structures of imgui
     ImGui::CreateContext();
 
-    // this initializes imgui for SDL
+    // this initializes imgui for GLFW
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
     VkPipelineRenderingCreateInfoKHR pipelineRenderingCI {};
@@ -460,6 +466,7 @@ void Engine::initImgui() {
     initInfo.Instance = instance;
     initInfo.PhysicalDevice = phyDevice;
     initInfo.Device = device;
+    initInfo.QueueFamily = graphicsQueueFamily;
     initInfo.Queue = graphicsQueue;
     initInfo.DescriptorPool = imguiPool;
     initInfo.MinImageCount = 3;
@@ -467,13 +474,13 @@ void Engine::initImgui() {
     initInfo.Allocator = pAllocator;
     initInfo.UseDynamicRendering = true;
     initInfo.PipelineRenderingCreateInfo = pipelineRenderingCI;
-
+    initInfo.CheckVkResultFn = check_vk_result;
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
     ImGui_ImplVulkan_Init(&initInfo);
 
-    // execute a gpu command to upload imgui font textures
-    immediateSubmit([&](VkCommandBuffer cmd) { ImGui_ImplVulkan_CreateFontsTexture(); });
+    ImGui_ImplVulkan_CreateFontsTexture();
+
     //ImGui_ImplVulkan_DestroyFontsTexture();
 
     // add the destroy the imgui created structures
@@ -594,15 +601,40 @@ void Engine::draw()
 	.height = drawImage.imageExtent.height};
     copy_image_to_image(cmd, drawImage.image, swapchainImages[swapchainImageIndex], imageExtent, swapchainExtent);
 
-    // set swapchain image layout to Present so we can show it on the screen
-    transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-    //finalize the command buffer (we can no longer add commands, but it can now be executed)
-    //make the swapchain image into writeable mode before rendering
-    transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    // set swapchain image layout to Attachment Optimal so we can draw it
+    transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-    //make the swapchain image into presentable mode
-    transition_image(cmd, swapchainImages[swapchainImageIndex],VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    // DRAWING IMGUI
+    //VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_GENERAL);
+    VkRenderingAttachmentInfo colorAttachment {};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    colorAttachment.pNext = nullptr;
+
+    colorAttachment.imageView = swapchainImageViews[swapchainImageIndex];
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+    VkRenderingInfo renderInfo = {};
+    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    renderInfo.pNext = nullptr;
+    renderInfo.renderArea = VkRect2D { VkOffset2D { 0, 0 }, swapchainExtent };
+
+    renderInfo.layerCount = 1;
+    renderInfo.colorAttachmentCount = 1;
+    renderInfo.pColorAttachments = &colorAttachment;
+    renderInfo.pDepthAttachment = nullptr;
+    renderInfo.pStencilAttachment = nullptr;
+
+    vkCmdBeginRendering(cmd, &renderInfo);
+
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+
+    vkCmdEndRendering(cmd);
+
+    // set swapchain image layout to Present so we can draw it
+    transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     //finalize the command buffer (we can no longer add commands, but it can now be executed)
     VK_CHECK(vkEndCommandBuffer(cmd));
@@ -650,7 +682,6 @@ void Engine::draw()
     presentInfo.swapchainCount = 1;
     presentInfo.pWaitSemaphores = &currFrame.renderSemaphore;
     presentInfo.waitSemaphoreCount = 1;
-
     presentInfo.pImageIndices = &swapchainImageIndex;
 
     VK_CHECK(vkQueuePresentKHR(graphicsQueue, &presentInfo));
@@ -659,9 +690,10 @@ void Engine::draw()
     frameNumber++;
 }
 
+
 void Engine::run()
 {
-    bool showDemoWindow;
+    bool showDemoWindow = false;
     glfwSetKeyCallback(window, keyCallback);
     //main loop
     while (!bQuit)
