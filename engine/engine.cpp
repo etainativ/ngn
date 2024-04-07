@@ -1,9 +1,11 @@
 #include "engine.h"
+#include "vk_types.h"
 
 #include <cstdint>
 #include <glm/common.hpp>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan_core.h>
+#include <backends/imgui_impl_vulkan.h>
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
@@ -19,6 +21,7 @@
 const bool bUseValidationLayers = false;
 #else
 const bool bUseValidationLayers = true;
+#include <iostream>
 #endif
 
 const VkBool32 wait = 1000000000;
@@ -168,7 +171,7 @@ Engine::Engine() {
     initFormats();
     initSwapchain();
     initFrameData();
-    initDrawImage();
+    initImages();
     initImCommand();
     initImgui();
 }
@@ -349,7 +352,7 @@ void Engine::initFrameData()
 }
 
 
-void Engine::initDrawImage() {
+void Engine::initImages() {
     VkExtent3D drawImageExtent = {
 	windowExtent.width,
 	windowExtent.height,
@@ -385,7 +388,7 @@ void Engine::initDrawImage() {
     rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     //allocate and create the image
-    vmaCreateImage(allocator, &imageCI, &rimg_allocinfo, &drawImage.image, &drawImage.allocation, nullptr);
+    VK_CHECK(vmaCreateImage(allocator, &imageCI, &rimg_allocinfo, &drawImage.image, &drawImage.allocation, nullptr));
     onDestruct([&]() {vmaDestroyImage(allocator, drawImage.image, drawImage.allocation);});
 
     VkImageViewCreateInfo imageViewCI = {};
@@ -403,6 +406,42 @@ void Engine::initDrawImage() {
 
     VK_CHECK(vkCreateImageView(device, &imageViewCI, pAllocator, &drawImage.view));
     onDestruct([=]() { vkDestroyImageView(device, drawImage.view, pAllocator); });
+
+    depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
+    depthImage.imageExtent = drawImageExtent;
+
+    VkImageCreateInfo depthCI = {};
+    depthCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    depthCI.pNext = nullptr;
+    depthCI.imageType = VK_IMAGE_TYPE_2D;
+    depthCI.format = depthImage.imageFormat;
+    depthCI.extent = depthImage.imageExtent;
+    depthCI.mipLevels = 1;
+    depthCI.arrayLayers = 1;
+
+    //for MSAA. we will not be using it by default, so default it to 1 sample per pixel.
+    depthCI.samples = VK_SAMPLE_COUNT_1_BIT;
+
+    //optimal tiling, which means the image is stored on the best gpu format
+    depthCI.tiling = VK_IMAGE_TILING_OPTIMAL;
+    depthCI.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    VK_CHECK(vmaCreateImage(allocator, &depthCI, &rimg_allocinfo, &depthImage.image, &depthImage.allocation, nullptr));
+    onDestruct([&]() {vmaDestroyImage(allocator, depthImage.image, depthImage.allocation);});
+
+    VkImageViewCreateInfo depthViewCI = {};
+    depthViewCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    depthViewCI.pNext = nullptr;
+
+    depthViewCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    depthViewCI.subresourceRange.baseMipLevel = 0;
+    depthViewCI.subresourceRange.levelCount = 1;
+    depthViewCI.subresourceRange.baseArrayLayer = 0;
+    depthViewCI.subresourceRange.layerCount = 1;
+    depthViewCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    depthViewCI.image = depthImage.image;
+    depthViewCI.format = depthImage.imageFormat;
+    VK_CHECK(vkCreateImageView(device, &depthViewCI, pAllocator, &depthImage.view));
+    onDestruct([&]() { vkDestroyImageView(device, depthImage.view, pAllocator); });
 }
 
 
@@ -453,13 +492,12 @@ void Engine::initImgui() {
     // this initializes imgui for GLFW
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
-    VkPipelineRenderingCreateInfoKHR pipelineRenderingCI {};
+    VkPipelineRenderingCreateInfo pipelineRenderingCI {};
     pipelineRenderingCI.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
     pipelineRenderingCI.viewMask = 0;
     pipelineRenderingCI.colorAttachmentCount = 1;
-    pipelineRenderingCI.pColorAttachmentFormats = &swapchainImageFormat;
-    pipelineRenderingCI.depthAttachmentFormat = depthFormat;
-    pipelineRenderingCI.stencilAttachmentFormat = stencilFormat;
+    pipelineRenderingCI.pColorAttachmentFormats = &drawImage.imageFormat;
+    pipelineRenderingCI.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
 
     // this initializes imgui for Vulkan
     ImGui_ImplVulkan_InitInfo initInfo = {};
@@ -480,8 +518,6 @@ void Engine::initImgui() {
     ImGui_ImplVulkan_Init(&initInfo);
 
     ImGui_ImplVulkan_CreateFontsTexture();
-
-    //ImGui_ImplVulkan_DestroyFontsTexture();
 
     // add the destroy the imgui created structures
     onDestruct([&]() { 
@@ -544,101 +580,10 @@ void resizeCallback(GLFWwindow* window, int width, int height) {
     self->windowExtent.height = height;
 }
 
-void Engine::draw()
+
+void Engine::presentImage(
+	VkCommandBuffer &cmd, FrameData &currFrame, uint32_t &swapchainImageIndex)
 {
-    FrameData& currFrame = frames[frameNumber % FRAME_OVERLAP];
-
-    VK_CHECK(vkWaitForFences(device, 1, &currFrame.renderFence, true, wait));
-    VK_CHECK(vkResetFences(device, 1, &currFrame.renderFence));
-
-    //request image from the swapchain
-    uint32_t swapchainImageIndex;
-    VK_CHECK(vkAcquireNextImageKHR(device, swapchain, wait, currFrame.swapchainSemaphore, nullptr, &swapchainImageIndex));
-
-    //naming it cmd for shorter writing
-    VkCommandBuffer cmd = currFrame.commandBuffer;
-
-    // now that we are sure that the commands finished executing, we can safely
-    // reset the command buffer to begin recording again.
-    VK_CHECK(vkResetCommandBuffer(cmd, 0));
-
-    //begin the command buffer recording. We will use this command buffer exactly once, so we want to let vulkan know that
-    VkCommandBufferBeginInfo cmdBeginInfo {};
-    cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    cmdBeginInfo.pNext = nullptr;
-    cmdBeginInfo.pInheritanceInfo = nullptr;
-    cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    //start the command buffer recording
-    VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
-
-    // transition our main draw image into general layout so we can write into it
-    // we will overwrite it all so we dont care about what was the older layout
-    transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-
-    //make a clear-color from frame number. This will flash with a 120 frame period.
-    VkClearColorValue clearValue;
-    float flash = glm::abs(sin(frameNumber / 120.f));
-    clearValue = { { 0.0f, 0.0f, flash, 1.0f } };
-
-    VkImageSubresourceRange clearRange{};
-    clearRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    clearRange.baseMipLevel = 0;
-    clearRange.levelCount = VK_REMAINING_MIP_LEVELS;
-    clearRange.baseArrayLayer = 0;
-    clearRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
-
-    //clear image
-    vkCmdClearColorImage(cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
-
-    //transition the draw image and the swapchain image into their correct transfer layouts
-    transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-    // execute a copy from the draw image into the swapchain
-    VkExtent2D imageExtent = {
-	.width = drawImage.imageExtent.width,
-	.height = drawImage.imageExtent.height};
-    copy_image_to_image(cmd, drawImage.image, swapchainImages[swapchainImageIndex], imageExtent, swapchainExtent);
-
-
-    // set swapchain image layout to Attachment Optimal so we can draw it
-    transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-    // DRAWING IMGUI
-    //VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_GENERAL);
-    VkRenderingAttachmentInfo colorAttachment {};
-    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    colorAttachment.pNext = nullptr;
-
-    colorAttachment.imageView = swapchainImageViews[swapchainImageIndex];
-    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-
-    VkRenderingInfo renderInfo = {};
-    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    renderInfo.pNext = nullptr;
-    renderInfo.renderArea = VkRect2D { VkOffset2D { 0, 0 }, swapchainExtent };
-
-    renderInfo.layerCount = 1;
-    renderInfo.colorAttachmentCount = 1;
-    renderInfo.pColorAttachments = &colorAttachment;
-    renderInfo.pDepthAttachment = nullptr;
-    renderInfo.pStencilAttachment = nullptr;
-
-    vkCmdBeginRendering(cmd, &renderInfo);
-
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
-
-    vkCmdEndRendering(cmd);
-
-    // set swapchain image layout to Present so we can draw it
-    transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
-    //finalize the command buffer (we can no longer add commands, but it can now be executed)
-    VK_CHECK(vkEndCommandBuffer(cmd));
-
     // SUBMIT
     VkCommandBufferSubmitInfo commandBufferSubmitInfo{};
     commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
@@ -685,19 +630,265 @@ void Engine::draw()
     presentInfo.pImageIndices = &swapchainImageIndex;
 
     VK_CHECK(vkQueuePresentKHR(graphicsQueue, &presentInfo));
+}
+
+void Engine::draw(Scene &scene)
+{
+    FrameData& currFrame = frames[frameNumber % FRAME_OVERLAP];
+
+    VK_CHECK(vkWaitForFences(device, 1, &currFrame.renderFence, true, wait));
+    VK_CHECK(vkResetFences(device, 1, &currFrame.renderFence));
+
+    //naming it cmd for shorter writing
+    VkCommandBuffer cmd = currFrame.commandBuffer;
+
+    // now that we are sure that the commands finished executing, we can safely
+    // reset the command buffer to begin recording again.
+    VK_CHECK(vkResetCommandBuffer(cmd, 0));
+
+    //begin the command buffer recording. We will use this command buffer exactly once, so we want to let vulkan know that
+    VkCommandBufferBeginInfo cmdBeginInfo {};
+    cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    cmdBeginInfo.pNext = nullptr;
+    cmdBeginInfo.pInheritanceInfo = nullptr;
+    cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    //start the command buffer recording
+    VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+
+    // transition our main draw image into general layout so we can write into it
+    // we will overwrite it all so we dont care about what was the older layout
+    transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
+    //make a clear-color from frame number. This will flash with a 120 frame period.
+    VkClearColorValue clearValue;
+    float flash = glm::abs(sin(frameNumber / 120.f));
+    clearValue = { { 0.0f, 0.0f, flash, 1.0f } };
+
+    VkImageSubresourceRange clearRange{};
+    clearRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    clearRange.baseMipLevel = 0;
+    clearRange.levelCount = VK_REMAINING_MIP_LEVELS;
+    clearRange.baseArrayLayer = 0;
+    clearRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+
+    //clear image
+    vkCmdClearColorImage(cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+
+    // DRAWING IMGUI
+    VkRenderingAttachmentInfo colorAttachment {};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    colorAttachment.pNext = nullptr;
+
+    colorAttachment.imageView = drawImage.view;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+    VkRenderingAttachmentInfo depthAttachment {};
+    depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    depthAttachment.pNext = nullptr;
+
+    depthAttachment.imageView = depthImage.view;
+    depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    depthAttachment.clearValue.depthStencil.depth = 0.f;
+
+    VkExtent2D imageExtent = {
+	.width = drawImage.imageExtent.width,
+	.height = drawImage.imageExtent.height};
+
+    VkRenderingInfo renderInfo = {};
+    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    renderInfo.pNext = nullptr;
+    renderInfo.renderArea = VkRect2D { VkOffset2D { 0, 0 }, imageExtent };
+
+    renderInfo.layerCount = 1;
+    renderInfo.colorAttachmentCount = 1;
+    renderInfo.pColorAttachments = &colorAttachment;
+    renderInfo.pDepthAttachment = &depthAttachment;
+    renderInfo.pStencilAttachment = nullptr;
+
+    transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    vkCmdBeginRendering(cmd, &renderInfo);
+
+    for (auto &gameobject : scene.objects) {
+
+	GPUDrawPushConstants pushConstants = {
+	    .worldMatrix = scene.camera,
+	    .vertexBuffer = gameobject.mesh.vertexBuffer.address
+	};
+    	//set dynamic viewport and scissor
+	VkViewport viewport = {};
+	viewport.x = 0;
+	viewport.y = 0;
+	viewport.width = drawImage.imageExtent.width;
+	viewport.height = drawImage.imageExtent.height;
+	viewport.minDepth = 0.f;
+	viewport.maxDepth = 1.f;
+
+	vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+	VkRect2D scissor = {};
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	scissor.extent.width = drawImage.imageExtent.width;
+	scissor.extent.height = drawImage.imageExtent.height;
+
+	vkCmdSetScissor(cmd, 0, 1, &scissor);
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, gameobject.pipeline->vkPipeline);
+	vkCmdPushConstants(
+		cmd,
+		gameobject.pipeline->pipelineLayout,
+		VK_SHADER_STAGE_VERTEX_BIT, 0,
+		sizeof(GPUDrawPushConstants), (void*)&pushConstants);
+	vkCmdBindIndexBuffer(cmd, gameobject.mesh.indicesBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+    }
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+
+    vkCmdEndRendering(cmd);
+
+    //request image from the swapchain
+    uint32_t swapchainImageIndex;
+    VK_CHECK(vkAcquireNextImageKHR(device, swapchain, wait, currFrame.swapchainSemaphore, nullptr, &swapchainImageIndex));
+
+    //transition the draw image and the swapchain image into their correct transfer layouts
+    transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+    // execute a copy from the draw image into the swapchain
+    copy_image_to_image(cmd, drawImage.image, swapchainImages[swapchainImageIndex], imageExtent, swapchainExtent);
+
+    // set swapchain image layout to Attachment Optimal so we can draw it
+    transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    // set swapchain image layout to Present so we can draw it
+    transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+    //finalize the command buffer (we can no longer add commands, but it can now be executed)
+    VK_CHECK(vkEndCommandBuffer(cmd));
+
+    presentImage(cmd, currFrame, swapchainImageIndex);
 
     //increase the number of frames drawn
     frameNumber++;
 }
 
+AllocatedBuffer Engine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
+{
+	// allocate buffer
+	VkBufferCreateInfo bufferInfo = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+	bufferInfo.pNext = nullptr;
+	bufferInfo.size = allocSize;
 
-void Engine::run()
+	bufferInfo.usage = usage;
+
+	VmaAllocationCreateInfo vmaallocInfo = {};
+	vmaallocInfo.usage = memoryUsage;
+	vmaallocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	AllocatedBuffer newBuffer;
+
+	// allocate the buffer
+	VK_CHECK(vmaCreateBuffer(allocator, &bufferInfo, &vmaallocInfo, &newBuffer.buffer, &newBuffer.allocation,
+		&newBuffer.info));
+
+	return newBuffer;
+}
+
+void Engine::loadMesh(Mesh &mesh) {
+    const size_t vertexBufferSize = mesh.vertices.size() * sizeof(Vertex);
+    const size_t indexBufferSize = mesh.indices.size() * sizeof(uint32_t);
+
+    mesh.vertexBuffer = create_buffer(
+	    vertexBufferSize,
+	    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+	    VMA_MEMORY_USAGE_GPU_ONLY);
+
+    VkBufferDeviceAddressInfo deviceAdressInfo{
+	    .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+	    .pNext = nullptr,
+	    .buffer = mesh.vertexBuffer.buffer};
+
+    mesh.vertexBuffer.address = vkGetBufferDeviceAddress(device, &deviceAdressInfo);
+
+    //create index buffer
+    mesh.indicesBuffer = create_buffer(
+	    indexBufferSize,
+	    VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+	    VMA_MEMORY_USAGE_GPU_ONLY);
+
+    AllocatedBuffer staging = create_buffer(
+	    vertexBufferSize + indexBufferSize,
+	    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+	    VMA_MEMORY_USAGE_CPU_ONLY);
+
+    void* data = staging.allocation->GetMappedData();
+
+    // copy vertex buffer
+    memcpy(data, mesh.vertices.data(), vertexBufferSize);
+    // copy index buffer
+    memcpy((char*)data + vertexBufferSize, mesh.indices.data(), indexBufferSize);
+
+    immediateSubmit([&](VkCommandBuffer cmd) {
+	    VkBufferCopy vertexCopy{ 0 };
+	    vertexCopy.dstOffset = 0;
+	    vertexCopy.srcOffset = 0;
+	    vertexCopy.size = vertexBufferSize;
+
+	    vkCmdCopyBuffer(cmd, staging.buffer, mesh.vertexBuffer.buffer, 1, &vertexCopy);
+
+	    VkBufferCopy indexCopy{ 0 };
+	    indexCopy.dstOffset = 0;
+	    indexCopy.srcOffset = vertexBufferSize;
+	    indexCopy.size = indexBufferSize;
+
+	    vkCmdCopyBuffer(cmd, staging.buffer, mesh.indicesBuffer.buffer, 1, &indexCopy);
+	    });
+
+    vmaDestroyBuffer(allocator, staging.buffer, staging.allocation);
+}
+
+
+void Engine::unloadMesh(Mesh &mesh) {
+    vmaDestroyBuffer(allocator, mesh.vertexBuffer.buffer, mesh.vertexBuffer.allocation);
+    vmaDestroyBuffer(allocator, mesh.indicesBuffer.buffer, mesh.indicesBuffer.allocation);
+}
+
+
+void Engine::unloadScene(Scene &scene) {
+    for (auto &pipeline : scene.pipelines) {
+	pipeline.destroyPipeline(device, pAllocator);
+    }
+
+    for (auto &gameobject : scene.objects) {
+	unloadMesh(gameobject.mesh);
+    }
+};
+
+
+void Engine::loadScene(Scene &scene) {
+    for (auto &pipeline : scene.pipelines) {
+	pipeline.setColorAttachment(drawImage.imageFormat);
+	pipeline.renderInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
+	pipeline.createPipeline(device, pAllocator);
+    }
+
+    for (auto &gameobject : scene.objects) {
+	loadMesh(gameobject.mesh);
+    }
+};
+
+
+void Engine::run(Scene &firstScene)
 {
     bool showDemoWindow = false;
     glfwSetKeyCallback(window, keyCallback);
     //main loop
+    loadScene(firstScene);
     while (!bQuit)
     {
+	// gamelogic
 	glfwPollEvents();
 	// imgui new frame
 	ImGui_ImplVulkan_NewFrame();
@@ -709,6 +900,13 @@ void Engine::run()
 
 	//make imgui calculate internal draw structures
 	ImGui::Render();
-	draw();
+	draw(firstScene);
     }
+
+    // wait for renderer to finish before destoying buffers and pipelines
+    for (auto &frame : frames) {
+	VK_CHECK(vkWaitForFences(device, 1, &frame.renderFence, true, wait));
+    }
+
+    unloadScene(firstScene);
 }

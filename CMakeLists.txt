@@ -3,6 +3,7 @@ project(swe)
 
 include_directories(include) 
 include_directories(external/imgui)
+include_directories(example)
 
 SET(CMAKE_CXX_STANDARD 17)
 SET(CMAKE_CXX_STANDARD_REQUIRED ON)

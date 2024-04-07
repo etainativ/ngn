@@ -1,5 +1,6 @@
 #pragma once
 
+#include "scene.h"
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -8,8 +9,6 @@
 #include <vector>
 #include <deque>
 #include <functional>
-
-#include "backends/imgui_impl_vulkan.h"
 
 constexpr int FRAME_OVERLAP = 2;
 
@@ -47,7 +46,7 @@ class Engine {
 	VkExtent2D swapchainExtent;
 	VkExtent2D windowExtent = { 1200, 960 };
 	bool bQuit = false;
-	void run();
+	void run(Scene &FirstScene);
 
     private:
 	int frameNumber = 0;
@@ -67,6 +66,7 @@ class Engine {
 
 	FrameData frames[FRAME_OVERLAP];
 	Image drawImage;
+	Image depthImage;
 
 	std::deque<std::function<void()>> deletors;
 	void onDestruct(std::function<void()>&& function) {
@@ -87,9 +87,18 @@ class Engine {
 	void initFormats();
 	void initSwapchain();
 	void initFrameData();
-	void initDrawImage();
+	void initImages();
 	void initImCommand();
 	void initImgui();
-	void draw();
+	void draw(Scene& scene);
+	void presentImage(
+		VkCommandBuffer &cmd,
+		FrameData &currFrame,
+		uint32_t &swapchainImageIndex);
+	void loadScene(Scene &scene);
+	void unloadScene(Scene &scene);
+	void loadMesh(Mesh &mesh);
+	void unloadMesh(Mesh &mesh);
+	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 
 };

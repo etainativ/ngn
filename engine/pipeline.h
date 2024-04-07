@@ -1,3 +1,4 @@
+#pragma once
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -6,8 +7,7 @@ class Pipeline {
 	Pipeline();
 	~Pipeline();
 	VkPipeline createPipeline(VkDevice device, VkAllocationCallbacks* pAllocator);
-	void addVertexShader(const char *shaderModuleFilePath, VkDevice device, VkAllocationCallbacks* pAllocator);
-	void addFragShader(const char *shaderModuleFilePath, VkDevice device, VkAllocationCallbacks* pAllocator);
+	void destroyPipeline(VkDevice device, VkAllocationCallbacks* pAllocator);
 	void setColorAttachment(VkFormat format, VkDevice device, VkAllocationCallbacks* pAllocator);
 	void setColorAttachment(VkFormat format);
 
@@ -22,16 +22,19 @@ class Pipeline {
 	VkPipelineColorBlendStateCreateInfo colorBlending = {};
 	VkGraphicsPipelineCreateInfo pipelineCI = {};
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
+	VkPushConstantRange bufferRange = {};
+	VkPipeline vkPipeline;
+	VkPipelineLayout pipelineLayout;
+	const char *vertexShaderFP;
+	const char *fragShaderFP;
 
     private:
-	VkPipelineLayout pipelineLayout;
-	VkPipeline vkPipeline;
 	VkShaderModule vertextShader;
 	VkShaderModule fragShader;
+	VkFormat colorAttachmentformat;
 	std::vector<VkPipelineShaderStageCreateInfo> stages;
 	void addShader(
 		const char *shaderFP,
 		VkShaderStageFlagBits flags,
 		VkShaderModule &shaderModule, VkDevice device, VkAllocationCallbacks* pAllocator);
 };
-
