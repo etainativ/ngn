@@ -22,7 +22,7 @@ struct GameObjects {
 };
 
 struct Scene {
-    std::vector<Pipeline> pipelines;
+    std::vector<Pipeline*> pipelines;
     std::vector<GameObjects> objects;
     glm::mat4 camera;
 };

@@ -1,6 +1,7 @@
 #include "engine.h"
 #include "vk_types.h"
 
+#include <GLFW/glfw3.h>
 #include <cstdint>
 #include <glm/common.hpp>
 #include <glm/glm.hpp>
@@ -20,8 +21,8 @@
 #ifdef NDEBUG
 const bool bUseValidationLayers = false;
 #else
+#include <glm/ext/matrix_transform.hpp>
 const bool bUseValidationLayers = true;
-#include <iostream>
 #endif
 
 const VkBool32 wait = 1000000000;
@@ -744,7 +745,7 @@ void Engine::draw(Scene &scene)
 		VK_SHADER_STAGE_VERTEX_BIT, 0,
 		sizeof(GPUDrawPushConstants), (void*)&pushConstants);
 	vkCmdBindIndexBuffer(cmd, gameobject.mesh.indicesBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+	vkCmdDrawIndexed(cmd, 3, 1, 0, 0, 0);
     }
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
@@ -858,7 +859,7 @@ void Engine::unloadMesh(Mesh &mesh) {
 
 void Engine::unloadScene(Scene &scene) {
     for (auto &pipeline : scene.pipelines) {
-	pipeline.destroyPipeline(device, pAllocator);
+	pipeline->destroyPipeline(device, pAllocator);
     }
 
     for (auto &gameobject : scene.objects) {
@@ -869,9 +870,9 @@ void Engine::unloadScene(Scene &scene) {
 
 void Engine::loadScene(Scene &scene) {
     for (auto &pipeline : scene.pipelines) {
-	pipeline.setColorAttachment(drawImage.imageFormat);
-	pipeline.renderInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
-	pipeline.createPipeline(device, pAllocator);
+	pipeline->setColorAttachment(drawImage.imageFormat);
+	pipeline->renderInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
+	pipeline->createPipeline(device, pAllocator);
     }
 
     for (auto &gameobject : scene.objects) {
@@ -883,11 +884,41 @@ void Engine::loadScene(Scene &scene) {
 void Engine::run(Scene &firstScene)
 {
     bool showDemoWindow = false;
-    glfwSetKeyCallback(window, keyCallback);
+    //glfwSetKeyCallback(window, keyCallback);
     //main loop
+    
+    glm::vec3 cameraUp { 0.0f, 1.0f, 0.0f };
+    glm::vec3 cameraLookat { 0.0f, 0.0f, 1.0f };
+    glm::vec3 cameraEye {0.0f, 0.0f, 0.0f };
+
     loadScene(firstScene);
     while (!bQuit)
     {
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+	{
+	    cameraEye.y += 0.1;
+	    cameraLookat.y += 0.1;
+	}
+
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+	{
+	    cameraEye.y -= 0.1;
+	    cameraLookat.y -= 0.1;
+	}
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+	{
+	    cameraEye.x += 0.1;
+	    cameraLookat.x += 0.1;
+	}
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+	{
+	    cameraEye.x -= 0.1;
+	    cameraLookat.x -= 0.1;
+	}
+	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+	    bQuit = true;
+
+	firstScene.camera = glm::lookAt(cameraEye, cameraLookat, cameraUp);
 	// gamelogic
 	glfwPollEvents();
 	// imgui new frame
@@ -899,6 +930,14 @@ void Engine::run(Scene &firstScene)
 	ImGui::ShowDemoWindow(&showDemoWindow);
 
 	//make imgui calculate internal draw structures
+	//ImGui::SliderFloat3("Camera Eye", &cameraEye.x, -1.0f, 1.0f);
+	//ImGui::SliderFloat3("Camera LookAt", &cameraLookat.x, -1.0f, 1.0f);
+	//ImGui::SliderFloat3("Camera Up", &cameraUp.x, -1.0f, 1.0f);
+	glm::mat4 x = firstScene.camera;
+	ImGui::Text("%f %f %f %f", x[0][0], x[0][1], x[0][2], x[0][3]);
+	ImGui::Text("%f %f %f %f", x[1][0], x[1][1], x[1][2], x[1][3]);
+	ImGui::Text("%f %f %f %f", x[2][0], x[2][1], x[2][2], x[2][3]);
+	ImGui::Text("%f %f %f %f", x[3][0], x[3][1], x[3][2], x[3][3]);
 	ImGui::Render();
 	draw(firstScene);
     }

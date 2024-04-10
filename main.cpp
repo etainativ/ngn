@@ -7,7 +7,7 @@ int main() {
     Scene scene;
     GameObjects obj;
     scene.pipelines.push_back(new Pipeline());
-    scene.pipelines[0]->vertexShaderFP = "../shaders/vert.gls";
+    scene.pipelines[0]->vertexShaderFP = "../shaders/test.vert.gls";
     scene.pipelines[0]->fragShaderFP= "../shaders/frag.gls";
 
     obj.pipeline = scene.pipelines[0];
@@ -33,9 +33,9 @@ int main() {
     scene.objects.push_back(obj);
 
     scene.camera = glm::lookAt(
-	    glm::vec3(0.0f, 0.0f, 1.0f),
-	    glm::vec3(0.0f, 0.0f, 0.0f),
-	    glm::vec3(0.0f, 1.0f, 0.0f));
+	    glm::vec3(0.0, 0.0, 1.0f),
+	    glm::vec3(0.0, 0.0, 0.0f),
+	    glm::vec3(0.0, 1.0, 0.0f));
 
     auto engine = Engine();
     engine.run(scene);
