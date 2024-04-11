@@ -1,5 +1,6 @@
 #version 450
 #extension GL_EXT_buffer_reference : require
+#extension GL_EXT_debug_printf : enable
 
 layout (location = 0) out vec3 outColor;
 layout (location = 1) out vec2 outUV;
@@ -23,6 +24,7 @@ void main()
 {
 	//load vertex data from device adress
 	Vertex v = PushConstants.vertexBuffer.vertices[gl_VertexIndex];
+	debugPrintfEXT("My float is %d", gl_VertexIndex);
 
 	//output data
 	//gl_Position = vec4(v.position, 1.0f);

@@ -1,5 +1,6 @@
+GLSL=glslc --target-env=vulkan1.3
 all:
-	glslc basic.vert -o vert.gls
-	glslc basic.frag -o frag.gls
-	glslc test.vert -o test.vert.gls
+	$(GLSL) basic.vert -o vert.gls
+	$(GLSL) basic.frag -o frag.gls
+	$(GLSL) test.vert -o test.vert.gls
 

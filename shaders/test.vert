@@ -1,5 +1,6 @@
 #version 450
 #extension GL_EXT_buffer_reference : require
+#extension GL_EXT_debug_printf : enable
 
 layout (location = 0) out vec3 outColor;
 
@@ -18,7 +19,7 @@ layout( push_constant ) uniform constants
 	VertexBuffer vertexBuffer;
 } PushConstants;
 
-void main() 
+void main()
 {
 	//const array of positions for the triangle
 	const vec3 positions[3] = vec3[3](
@@ -35,6 +36,7 @@ void main()
 	);
 
 	//output the position of each vertex
+	debugPrintfEXT("My float is %d", gl_VertexIndex);
 	gl_Position = PushConstants.render_matrix * vec4(positions[gl_VertexIndex], 1.0f);
 	outColor = colors[gl_VertexIndex];
 }
