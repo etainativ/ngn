@@ -1,10 +1,4 @@
 #include "engine.h"
-#include "vk_types.h"
-
-#include <GLFW/glfw3.h>
-#include <cstdint>
-#include <glm/common.hpp>
-#include <glm/glm.hpp>
 #include <vulkan/vulkan_core.h>
 #include <backends/imgui_impl_vulkan.h>
 
@@ -159,6 +153,7 @@ void resizeCallback(GLFWwindow* window, int width, int height);
 
 Engine::~Engine() {
     vkDeviceWaitIdle(device);
+    destroySwapchain();
     // destroy swapchain resources
     for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
 	(*it)(); //call functors
@@ -303,9 +298,14 @@ void Engine::initSwapchain()
     swapchainImages = vkbSwapchain.get_images().value();
     swapchainImageViews = vkbSwapchain.get_image_views().value();
 
-    onDestruct([&]() {vkDestroySwapchainKHR(device, swapchain, pAllocator);});
+}
+
+
+void Engine::destroySwapchain() 
+{
+    vkDestroySwapchainKHR(device, swapchain, pAllocator);
     for (auto &swapchainImageView : swapchainImageViews)
-	onDestruct([&]() {vkDestroyImageView(device, swapchainImageView, pAllocator);});
+	vkDestroyImageView(device, swapchainImageView, pAllocator);
 }
 
 
@@ -521,7 +521,7 @@ void Engine::initImgui() {
     ImGui_ImplVulkan_CreateFontsTexture();
 
     // add the destroy the imgui created structures
-    onDestruct([&]() { 
+    onDestruct([&]() {
 	    ImGui_ImplVulkan_Shutdown();
 	    ImGui_ImplGlfw_Shutdown();
 	    ImGui::DestroyContext();});
@@ -575,10 +575,16 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 }
 
 
+void Engine::resize() {
+    destroySwapchain();
+    initSwapchain();
+}
+
 void resizeCallback(GLFWwindow* window, int width, int height) {
     Engine *self = (Engine*)glfwGetWindowUserPointer(window);
     self->windowExtent.width = width;
     self->windowExtent.height = height;
+    self->resize();
 }
 
 
@@ -832,14 +838,14 @@ void Engine::loadMesh(Mesh &mesh) {
     memcpy((char*)data + vertexBufferSize, mesh.indices.data(), indexBufferSize);
 
     immediateSubmit([&](VkCommandBuffer cmd) {
-	    VkBufferCopy vertexCopy{ 0 };
+	    VkBufferCopy vertexCopy{};
 	    vertexCopy.dstOffset = 0;
 	    vertexCopy.srcOffset = 0;
 	    vertexCopy.size = vertexBufferSize;
 
 	    vkCmdCopyBuffer(cmd, staging.buffer, mesh.vertexBuffer.buffer, 1, &vertexCopy);
 
-	    VkBufferCopy indexCopy{ 0 };
+	    VkBufferCopy indexCopy{};
 	    indexCopy.dstOffset = 0;
 	    indexCopy.srcOffset = vertexBufferSize;
 	    indexCopy.size = indexBufferSize;

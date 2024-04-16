@@ -46,6 +46,7 @@ class Engine {
 	VkExtent2D swapchainExtent;
 	VkExtent2D windowExtent = { 1200, 960 };
 	bool bQuit = false;
+	void resize();
 	void run(Scene &FirstScene);
 
     private:
@@ -90,6 +91,7 @@ class Engine {
 	void initImages();
 	void initImCommand();
 	void initImgui();
+	void destroySwapchain();
 	void draw(Scene& scene);
 	void presentImage(
 		VkCommandBuffer &cmd,
