@@ -33,8 +33,8 @@ int main() {
     scene.objects.push_back(obj);
 
     scene.camera = glm::lookAt(
-	    glm::vec3(0.0, 0.0, 1.0f),
 	    glm::vec3(0.0, 0.0, 0.0f),
+	    glm::vec3(0.0, 0.0, 1.0f),
 	    glm::vec3(0.0, 1.0, 0.0f));
 
     auto engine = Engine();
