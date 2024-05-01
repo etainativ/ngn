@@ -1,4 +1,5 @@
 #include "engine/engine.h"
+#include "engine/pipeline.h"
 #include "engine/scene.h"
 #include <glm/ext/matrix_transform.hpp>
 
@@ -6,11 +7,11 @@
 int main() {
     Scene scene;
     GameObjects obj;
-    scene.pipelines.push_back(new Pipeline());
-    scene.pipelines[0]->vertexShaderFP = "../shaders/test.vert.gls";
-    scene.pipelines[0]->fragShaderFP= "../shaders/frag.gls";
+    scene.pipelines.push_back(Pipeline::initPipelineStruct(
+		"../shaders/vert.gls",
+		"../shaders/frag.gls"));
 
-    obj.pipeline = scene.pipelines[0];
+    obj.pipeline = &scene.pipelines[0];
     obj.mesh.vertices.push_back(Vertex {glm::vec3(0.5f, -0.5f, 0.0f)});
     obj.mesh.vertices.push_back(Vertex {glm::vec3(0.5f, 0.5f, 0.0f)});
     obj.mesh.vertices.push_back(Vertex {glm::vec3(-0.5f, -0.5f, 0.0f)});

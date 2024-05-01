@@ -1,5 +1,6 @@
 #include "renderer.h"
 #include "GLFW/glfw3.h"
+#include "pipeline.h"
 #include <vulkan/vulkan_core.h>
 
 #define VMA_IMPLEMENTATION
@@ -850,7 +851,7 @@ void Renderer::unloadScene(Scene &scene) {
     }
 
     for (auto &pipeline : scene.pipelines) {
-	pipeline->destroyPipeline(device, pAllocator);
+	Pipeline::destroyPipeline(pipeline, device, pAllocator);
     }
 
     for (auto &gameobject : scene.objects) {
@@ -861,9 +862,9 @@ void Renderer::unloadScene(Scene &scene) {
 
 void Renderer::loadScene(Scene &scene) {
     for (auto &pipeline : scene.pipelines) {
-	pipeline->setColorAttachment(drawImage.imageFormat);
-	pipeline->renderInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
-	pipeline->createPipeline(device, pAllocator);
+	Pipeline::setColorAttachment(pipeline, drawImage.imageFormat);
+	pipeline.renderInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
+	Pipeline::createPipeline(pipeline, device, pAllocator);
     }
 
     for (auto &gameobject : scene.objects) {

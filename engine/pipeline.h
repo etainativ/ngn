@@ -2,15 +2,8 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-class Pipeline {
-    public:
-	Pipeline();
-	~Pipeline();
-	VkPipeline createPipeline(VkDevice device, VkAllocationCallbacks* pAllocator);
-	void destroyPipeline(VkDevice device, VkAllocationCallbacks* pAllocator);
-	void setColorAttachment(VkFormat format, VkDevice device, VkAllocationCallbacks* pAllocator);
-	void setColorAttachment(VkFormat format);
-
+namespace Pipeline {
+    struct Pipeline {
 	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
 	VkPipelineRasterizationStateCreateInfo rasterizer = {};
 	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
@@ -23,18 +16,30 @@ class Pipeline {
 	VkGraphicsPipelineCreateInfo pipelineCI = {};
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	VkPushConstantRange bufferRange = {};
-	VkPipeline vkPipeline;
+	VkFormat colorAttachmentformat;
 	VkPipelineLayout pipelineLayout;
+	VkPipeline vkPipeline;
+
 	const char *vertexShaderFP;
 	const char *fragShaderFP;
 
-    private:
-	VkShaderModule vertextShader;
-	VkShaderModule fragShader;
-	VkFormat colorAttachmentformat;
 	std::vector<VkPipelineShaderStageCreateInfo> stages;
-	void addShader(
-		const char *shaderFP,
-		VkShaderStageFlagBits flags,
-		VkShaderModule &shaderModule, VkDevice device, VkAllocationCallbacks* pAllocator);
-};
+    };
+
+    Pipeline initPipelineStruct(
+	    const char *vertextShader,
+	    const char *fragShaderFP);
+
+    VkPipeline createPipeline(
+	    Pipeline &pipeline,
+	    VkDevice device,
+	    VkAllocationCallbacks* pAllocator);
+
+    void destroyPipeline(
+	    Pipeline &pipeline,
+	    VkDevice device,
+	    VkAllocationCallbacks* pAllocator);
+
+    void setColorAttachment(Pipeline &pipeline, VkFormat format);
+
+}

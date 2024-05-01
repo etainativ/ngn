@@ -24,7 +24,7 @@ void main()
 {
 	//load vertex data from device adress
 	Vertex v = PushConstants.vertexBuffer.vertices[gl_VertexIndex];
-	debugPrintfEXT("My float is %d", gl_VertexIndex);
+	debugPrintfEXT("%d: %f, %f, %f", gl_VertexIndex, v.position.x, v.position.y, v.position.z);
 
 	//output data
 	//gl_Position = vec4(v.position, 1.0f);

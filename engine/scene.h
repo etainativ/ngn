@@ -6,6 +6,7 @@
 
 struct Vertex {
     glm::vec3 pos;
+    float padding;
 };
 
 struct Mesh {
@@ -18,11 +19,11 @@ struct Mesh {
 struct GameObjects {
     glm::mat4 translation;
     Mesh mesh;
-    Pipeline *pipeline;
+    Pipeline::Pipeline *pipeline;
 };
 
 struct Scene {
-    std::vector<Pipeline*> pipelines;
+    std::vector<Pipeline::Pipeline> pipelines;
     std::vector<GameObjects> objects;
     glm::mat4 camera;
 };
