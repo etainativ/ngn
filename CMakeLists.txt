@@ -12,6 +12,8 @@ find_package(Vulkan REQUIRED FATAL_ERROR)
 
 include_directories(include) 
 include_directories(external/imgui)
+include_directories(external/tinygltf)
+include_directories(external/entt/src)
 include_directories(external/glfw/include)
 include_directories(example)
 
