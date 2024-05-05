@@ -74,18 +74,8 @@ namespace Pipeline {
 	pipeline.colorBlending.attachmentCount = 1;
 	pipeline.colorBlending.pAttachments = &pipeline.colorBlendAttachment;
 
-
 	pipeline.vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-	pipeline.pipelineCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipeline.pipelineCI.pNext = &pipeline.renderInfo;
-	pipeline.pipelineCI.pVertexInputState = &pipeline.vertexInputInfo;
-	pipeline.pipelineCI.pInputAssemblyState = &pipeline.inputAssembly;
-	pipeline.pipelineCI.pViewportState = &pipeline.viewportState;
-	pipeline.pipelineCI.pRasterizationState = &pipeline.rasterizer;
-	pipeline.pipelineCI.pMultisampleState = &pipeline.multisampling;
-	pipeline.pipelineCI.pColorBlendState = &pipeline.colorBlending;
-	pipeline.pipelineCI.pDepthStencilState = &pipeline.depthStencil;
 	pipeline.vertexShaderFP = vertexShaderFP;
 	pipeline.fragShaderFP = fragShaderFP;
 	return pipeline;
@@ -128,10 +118,20 @@ namespace Pipeline {
     }
 
     VkPipeline createPipeline(
-	    Pipeline &pipeline,
+	    Pipeline& pipeline,
 	    VkDevice device,
 	    VkAllocationCallbacks* pAllocator)
     {
+	pipeline.pipelineCI.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipeline.pipelineCI.pNext = &pipeline.renderInfo;
+	pipeline.pipelineCI.pVertexInputState = &pipeline.vertexInputInfo;
+	pipeline.pipelineCI.pInputAssemblyState = &pipeline.inputAssembly;
+	pipeline.pipelineCI.pViewportState = &pipeline.viewportState;
+	pipeline.pipelineCI.pRasterizationState = &pipeline.rasterizer;
+	pipeline.pipelineCI.pMultisampleState = &pipeline.multisampling;
+	pipeline.pipelineCI.pColorBlendState = &pipeline.colorBlending;
+	pipeline.pipelineCI.pDepthStencilState = &pipeline.depthStencil;
+
 	addShader(
 		pipeline.stages, pipeline.vertexShaderFP,
 		VK_SHADER_STAGE_VERTEX_BIT, device, pAllocator);
@@ -171,7 +171,7 @@ namespace Pipeline {
     }
 
     void destroyPipeline(
-	    Pipeline &pipeline,
+	    Pipeline& pipeline,
 	    VkDevice device,
 	    VkAllocationCallbacks* pAllocator)
     {

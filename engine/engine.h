@@ -12,5 +12,8 @@ class Engine {
 	Renderer *renderer;
 	GLFWwindow *window;
 
+	void loadScene(Scene &scene);
+	void unloadScene(Scene &scene);
+
 };
 

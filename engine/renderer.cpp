@@ -1,7 +1,5 @@
 #include "renderer.h"
-#include "GLFW/glfw3.h"
-#include "pipeline.h"
-#include <vulkan/vulkan_core.h>
+#include <glm/fwd.hpp>
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
@@ -32,6 +30,12 @@ static void check_vk_result(VkResult err)
     if (err < 0)
         abort();
 }
+
+struct RendererMeshData {
+	AllocatedBuffer vertexBuffer;
+	AllocatedBuffer indicesBuffer;
+};
+
 VkBool32 getSupportedDepthFormat(VkPhysicalDevice physicalDevice, VkFormat *depthFormat)
 {
     // Since all depth formats may be optional, we need to find a suitable depth format to use
@@ -554,7 +558,6 @@ void Renderer::immediateSubmit(std::function<void(VkCommandBuffer cmd)>&& functi
     // submit command buffer to the queue and execute it.
     //  _renderFence will now block until the graphic commands finish execution
     VK_CHECK(vkQueueSubmit2(graphicsQueue, 1, &submitInfo, immFence));
-
     VK_CHECK(vkWaitForFences(device, 1, &immFence, true, wait));
 }
 
@@ -620,7 +623,7 @@ void Renderer::presentImage(
     VK_CHECK(vkQueuePresentKHR(graphicsQueue, &presentInfo));
 }
 
-void Renderer::draw(Scene &scene)
+void Renderer::draw(std::vector<RenderData>& renderData)
 {
     FrameData& currFrame = frames[frameNumber % FRAME_OVERLAP];
 
@@ -701,12 +704,13 @@ void Renderer::draw(Scene &scene)
     transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     vkCmdBeginRendering(cmd, &renderInfo);
 
-    for (auto &gameobject : scene.objects) {
+    for (auto &obj : renderData) {
 
 	GPUDrawPushConstants pushConstants = {
-	    .worldMatrix = scene.camera,
-	    .vertexBuffer = gameobject.mesh.vertexBuffer.address
+	    .worldMatrix = obj.transform,
+	    .vertexBuffer = obj.data->vertexBuffer.address
 	};
+
     	//set dynamic viewport and scissor
 	VkViewport viewport = {};
 	viewport.x = 0;
@@ -725,14 +729,14 @@ void Renderer::draw(Scene &scene)
 	scissor.extent.height = drawImage.imageExtent.height;
 
 	vkCmdSetScissor(cmd, 0, 1, &scissor);
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, gameobject.pipeline->vkPipeline);
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.pipeline->vkPipeline);
 	vkCmdPushConstants(
 		cmd,
-		gameobject.pipeline->pipelineLayout,
+		obj.pipeline->pipelineLayout,
 		VK_SHADER_STAGE_VERTEX_BIT, 0,
 		sizeof(GPUDrawPushConstants), (void*)&pushConstants);
-	vkCmdBindIndexBuffer(cmd, gameobject.mesh.indicesBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdDrawIndexed(cmd, 3, 1, 0, 0, 0);
+	vkCmdBindIndexBuffer(cmd, obj.data->indicesBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdDrawIndexed(cmd, obj.indicesCount, 1, 0, 0, 0);
     }
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
@@ -784,11 +788,16 @@ AllocatedBuffer Renderer::create_buffer(size_t allocSize, VkBufferUsageFlags usa
 	return newBuffer;
 }
 
-void Renderer::loadMesh(Mesh &mesh) {
-    const size_t vertexBufferSize = mesh.vertices.size() * sizeof(Vertex);
-    const size_t indexBufferSize = mesh.indices.size() * sizeof(uint32_t);
+RendererMeshData* Renderer::loadMesh(
+	std::vector<Mesh::Vertex>& vertices,
+	std::vector<uint32_t>& indices
+    ) {
 
-    mesh.vertexBuffer = create_buffer(
+    RendererMeshData* mesh = new RendererMeshData();
+    size_t vertexBufferSize = vertices.size() * sizeof(Mesh::Vertex);
+    size_t indicesBufferSize = indices.size() * sizeof(uint32_t);
+
+    mesh->vertexBuffer = create_buffer(
 	    vertexBufferSize,
 	    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 	    VMA_MEMORY_USAGE_GPU_ONLY);
@@ -796,27 +805,27 @@ void Renderer::loadMesh(Mesh &mesh) {
     VkBufferDeviceAddressInfo deviceAdressInfo{
 	    .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
 	    .pNext = nullptr,
-	    .buffer = mesh.vertexBuffer.buffer};
+	    .buffer = mesh->vertexBuffer.buffer};
 
-    mesh.vertexBuffer.address = vkGetBufferDeviceAddress(device, &deviceAdressInfo);
+    mesh->vertexBuffer.address = vkGetBufferDeviceAddress(device, &deviceAdressInfo);
 
     //create index buffer
-    mesh.indicesBuffer = create_buffer(
-	    indexBufferSize,
+    mesh->indicesBuffer = create_buffer(
+	    indicesBufferSize,
 	    VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 	    VMA_MEMORY_USAGE_GPU_ONLY);
 
     AllocatedBuffer staging = create_buffer(
-	    vertexBufferSize + indexBufferSize,
+	    vertexBufferSize + indicesBufferSize,
 	    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 	    VMA_MEMORY_USAGE_CPU_ONLY);
 
     void* data = staging.allocation->GetMappedData();
 
     // copy vertex buffer
-    memcpy(data, mesh.vertices.data(), vertexBufferSize);
+    memcpy(data, vertices.data(), vertexBufferSize);
     // copy index buffer
-    memcpy((char*)data + vertexBufferSize, mesh.indices.data(), indexBufferSize);
+    memcpy((char*)data + vertexBufferSize, indices.data(), indicesBufferSize);
 
     immediateSubmit([&](VkCommandBuffer cmd) {
 	    VkBufferCopy vertexCopy{};
@@ -824,50 +833,37 @@ void Renderer::loadMesh(Mesh &mesh) {
 	    vertexCopy.srcOffset = 0;
 	    vertexCopy.size = vertexBufferSize;
 
-	    vkCmdCopyBuffer(cmd, staging.buffer, mesh.vertexBuffer.buffer, 1, &vertexCopy);
+	    vkCmdCopyBuffer(cmd, staging.buffer, mesh->vertexBuffer.buffer, 1, &vertexCopy);
 
 	    VkBufferCopy indexCopy{};
 	    indexCopy.dstOffset = 0;
 	    indexCopy.srcOffset = vertexBufferSize;
-	    indexCopy.size = indexBufferSize;
+	    indexCopy.size = indicesBufferSize;
 
-	    vkCmdCopyBuffer(cmd, staging.buffer, mesh.indicesBuffer.buffer, 1, &indexCopy);
+	    vkCmdCopyBuffer(cmd, staging.buffer, mesh->indicesBuffer.buffer, 1, &indexCopy);
 	    });
 
     vmaDestroyBuffer(allocator, staging.buffer, staging.allocation);
+    return mesh;
 }
 
 
-void Renderer::unloadMesh(Mesh &mesh) {
-    vmaDestroyBuffer(allocator, mesh.vertexBuffer.buffer, mesh.vertexBuffer.allocation);
-    vmaDestroyBuffer(allocator, mesh.indicesBuffer.buffer, mesh.indicesBuffer.allocation);
+void Renderer::unloadMesh(RendererMeshData* mesh) {
+    vmaDestroyBuffer(allocator, mesh->vertexBuffer.buffer, mesh->vertexBuffer.allocation);
+    vmaDestroyBuffer(allocator, mesh->indicesBuffer.buffer, mesh->indicesBuffer.allocation);
+    delete mesh;
 }
 
+void Renderer::loadPipeline(Pipeline::Pipeline& pipeline) {
+    Pipeline::setColorAttachment(pipeline, drawImage.imageFormat);
+    pipeline.renderInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
+    Pipeline::createPipeline(pipeline, device, pAllocator);
+}
 
-void Renderer::unloadScene(Scene &scene) {
-    // wait for renderer to finish before destoying buffers and pipelines
+void Renderer::unloadPipeline(Pipeline::Pipeline& pipeline){
     for (auto &frame : frames) {
 	VK_CHECK(vkWaitForFences(device, 1, &frame.renderFence, true, wait));
     }
 
-    for (auto &pipeline : scene.pipelines) {
-	Pipeline::destroyPipeline(pipeline, device, pAllocator);
-    }
-
-    for (auto &gameobject : scene.objects) {
-	unloadMesh(gameobject.mesh);
-    }
-};
-
-
-void Renderer::loadScene(Scene &scene) {
-    for (auto &pipeline : scene.pipelines) {
-	Pipeline::setColorAttachment(pipeline, drawImage.imageFormat);
-	pipeline.renderInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
-	Pipeline::createPipeline(pipeline, device, pAllocator);
-    }
-
-    for (auto &gameobject : scene.objects) {
-	loadMesh(gameobject.mesh);
-    }
-};
+    Pipeline::destroyPipeline(pipeline, device, pAllocator);
+}

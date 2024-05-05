@@ -1,4 +1,5 @@
 #include "engine/engine.h"
+#include "engine/glft_object.h"
 #include "engine/pipeline.h"
 #include "engine/scene.h"
 #include <glm/ext/matrix_transform.hpp>
@@ -6,37 +7,11 @@
 
 int main() {
     Scene scene;
-    GameObjects obj;
     scene.pipelines.push_back(Pipeline::initPipelineStruct(
 		"../shaders/vert.gls",
 		"../shaders/frag.gls"));
-
-    obj.pipeline = &scene.pipelines[0];
-    obj.mesh.vertices.push_back(Vertex {glm::vec3(0.5f, -0.5f, 0.0f)});
-    obj.mesh.vertices.push_back(Vertex {glm::vec3(0.5f, 0.5f, 0.0f)});
-    obj.mesh.vertices.push_back(Vertex {glm::vec3(-0.5f, -0.5f, 0.0f)});
-    obj.mesh.vertices.push_back(Vertex {glm::vec3(0.0f, 0.0f, -0.5f)});
-    obj.mesh.indices.push_back(0);
-    obj.mesh.indices.push_back(1);
-    obj.mesh.indices.push_back(2);
-
-    obj.mesh.indices.push_back(0);
-    obj.mesh.indices.push_back(2);
-    obj.mesh.indices.push_back(3);
-
-    obj.mesh.indices.push_back(0);
-    obj.mesh.indices.push_back(1);
-    obj.mesh.indices.push_back(3);
-
-    obj.mesh.indices.push_back(1);
-    obj.mesh.indices.push_back(2);
-    obj.mesh.indices.push_back(3);
-    scene.objects.push_back(obj);
-
-    scene.camera = glm::lookAt(
-	    glm::vec3(0.0, 0.0, 0.0f),
-	    glm::vec3(0.0, 0.0, 1.0f),
-	    glm::vec3(0.0, 1.0, 0.0f));
+    scene.glftObjects.push_back(GlftObject::GlftObject {
+	    .filename = "../models/ship.gltf"});
 
     auto engine = Engine();
     engine.run(scene);

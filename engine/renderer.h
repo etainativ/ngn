@@ -1,6 +1,9 @@
 #pragma once
 
-#include "scene.h"
+#include "pipeline.h"
+#include "vk_types.h"
+#include "mesh.h"
+#include <glm/fwd.hpp>
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -12,6 +15,14 @@
 
 constexpr int FRAME_OVERLAP = 2;
 
+struct RendererMeshData;
+
+struct RenderData {
+    glm::mat4x4 transform;
+    Pipeline::Pipeline* pipeline;
+    RendererMeshData* data;
+    uint32_t indicesCount;
+};
 
 struct FrameData {
     VkCommandBuffer commandBuffer;
@@ -47,9 +58,18 @@ class Renderer {
 	bool bQuit = false;
 	void resize();
 
-	void draw(Scene& scene);
-	void loadScene(Scene &scene);
-	void unloadScene(Scene &scene);
+	//Mesh
+	RendererMeshData* loadMesh(
+		std::vector<Mesh::Vertex>& vertices,
+		std::vector<uint32_t>& indices);
+	void unloadMesh(RendererMeshData *meshData);
+	
+	//Pipeline
+	void loadPipeline(Pipeline::Pipeline& pipeline);
+	void unloadPipeline(Pipeline::Pipeline& pipeline);
+
+	//scene
+	void draw(std::vector<RenderData>& renderData);
 
     private:
 	int frameNumber = 0;
@@ -97,8 +117,6 @@ class Renderer {
 		VkCommandBuffer &cmd,
 		FrameData &currFrame,
 		uint32_t &swapchainImageIndex);
-	void loadMesh(Mesh &mesh);
-	void unloadMesh(Mesh &mesh);
 	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 
 };

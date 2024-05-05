@@ -3,6 +3,11 @@
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
+#include "renderer.h"
+#include <glm/ext/matrix_transform.hpp>
+#include <glm/ext/quaternion_geometric.hpp>
+#include <glm/fwd.hpp>
+
 
 void resizeCallback(GLFWwindow* window, int width, int height) {
     Engine *self = (Engine*)glfwGetWindowUserPointer(window);
@@ -31,10 +36,27 @@ Engine::~Engine() {
 
 void Engine::run(Scene &firstScene)
 {
-    bool showDemoWindow = false;
+    //bool showDemoWindow = false;
     bool bQuit = false;
-    
-    renderer->loadScene(firstScene);
+
+    loadScene(firstScene);
+    std::vector<RenderData> renderData;
+
+    glm::vec3 eye {0.f, 0.f, 0.f};
+    glm::vec3 center {0.f, 0.f, 1.f};
+    glm::vec3 up {0.f, 1.f, 0.f};
+    renderData.push_back(RenderData {
+	    .transform = glm::lookAt(eye, center, up),
+	    .pipeline = &(firstScene.pipelines[0]),
+	    .data = firstScene.glftObjects[0].meshData,
+	    .indicesCount = firstScene.glftObjects[0].children[0].meshes[0].indexCount
+	    });
+    renderData[0].transform = glm::mat4x4(
+	    1.f, 0.f, 0.f, 0.f,
+	    0.f, 1.f, 0.f, 0.f,
+	    0.f, 0.f, 1.f, 0.f,
+	    0.f, 0.f, 0.f, 10.f);
+    float angle = 0;
     while (!bQuit)
     {
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
@@ -47,17 +69,55 @@ void Engine::run(Scene &firstScene)
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 
-	//some imgui UI to test
-	ImGui::ShowDemoWindow(&showDemoWindow);
+	// setting camera
+	/*
+	ImGui::SliderFloat3("eye", &eye.x, -100, 100);
+	ImGui::SliderFloat3("center", &center.x, -100, 100);
+	ImGui::SliderFloat3("up", &up.x, -100, 100);
 
-	glm::mat4 x = firstScene.camera;
+	ImGui::InputFloat3("eye", &eye.x);
+	ImGui::InputFloat3("center", &center.x);
+	ImGui::InputFloat3("up", &up.x);
+
+	//
+	renderData[0].transform = glm::lookAt(eye, center, up);
+	*/
+	glm::mat4x4 x = renderData[0].transform;
 	ImGui::Text("%f %f %f %f", x[0][0], x[0][1], x[0][2], x[0][3]);
 	ImGui::Text("%f %f %f %f", x[1][0], x[1][1], x[1][2], x[1][3]);
 	ImGui::Text("%f %f %f %f", x[2][0], x[2][1], x[2][2], x[2][3]);
 	ImGui::Text("%f %f %f %f", x[3][0], x[3][1], x[3][2], x[3][3]);
+	renderData[0].transform = x * glm::rotate(glm::mat4x4(1.f), angle, glm::normalize(glm::vec3(1.f, 1.f, 0.f)));
+	//ImGui::ShowDemoWindow(&showDemoWindow);
 	ImGui::Render();
-	renderer->draw(firstScene);
+	renderer->draw(renderData);
+	angle += 0.0001;
     }
 
-    renderer->unloadScene(firstScene);
+    unloadScene(firstScene);
 }
+
+
+void Engine::unloadScene(Scene &scene) {
+    // wait for renderer to finish before destoying buffers and pipelines
+    for (auto &pipeline : scene.pipelines) {
+	renderer->unloadPipeline(pipeline);
+    }
+
+    for (auto &glft : scene.glftObjects) {
+	GlftObject::unloadGlftObject(glft, renderer);
+    }
+};
+
+
+void Engine::loadScene(Scene &scene) {
+    for (auto &pipeline : scene.pipelines) {
+	renderer->loadPipeline(pipeline);
+
+    }
+
+    for (auto &glft : scene.glftObjects) {
+	GlftObject::loadGlftObject(glft, renderer);
+    }
+};
+
