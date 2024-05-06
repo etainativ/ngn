@@ -1,8 +1,8 @@
 #pragma once
 
-#include "pipeline.h"
+#include "engine/pipeline.h"
+#include "engine/mesh.h"
 #include "vk_types.h"
-#include "mesh.h"
 #include <glm/fwd.hpp>
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN

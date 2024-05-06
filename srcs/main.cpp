@@ -4,7 +4,6 @@
 #include "engine/scene.h"
 #include <glm/ext/matrix_transform.hpp>
 
-
 int main() {
     Scene scene;
     scene.pipelines.push_back(Pipeline::initPipelineStruct(

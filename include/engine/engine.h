@@ -1,5 +1,5 @@
-#include "renderer.h"
-#include "scene.h"
+#include "engine/rendering/renderer.h"
+#include "engine/scene.h"
 
 class Engine {
     public:

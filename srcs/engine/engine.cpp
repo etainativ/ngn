@@ -1,11 +1,13 @@
-#include "engine.h"
-#include "systems.h"
+#include "engine/engine.h"
+#include "engine/systems.h"
+#include "engine/rendering/renderer.h"
+
 #include "backends/imgui_impl_glfw.h"
 #include "entt/entity/fwd.hpp"
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
-#include "renderer.h"
+#include <cstdlib>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/ext/quaternion_geometric.hpp>
 #include <glm/fwd.hpp>
@@ -43,10 +45,10 @@ void Engine::gameLoop() {
 void Engine::run(Scene& scene)
 {
     bool bQuit = false;
-
+    std::vector<RenderData> bla;
     entt::registry entities;
     loadScene(scene);
-    struct SystemsData *systemsData = initSystems(scene, &entities);
+    struct SystemsData *systemsData = createSystems(scene, &entities);
 
     while (!bQuit)
     {
@@ -60,6 +62,9 @@ void Engine::run(Scene& scene)
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 	ImGui::Render();
+	
+	updateSystems(systemsData, &entities);
+	renderer->draw(bla);
     }
 
     destroySystems(systemsData, &entities);
