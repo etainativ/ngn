@@ -4,7 +4,7 @@
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
 #include "renderer.h"
-#include <glm/ext/matrix_transform.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <glm/ext/quaternion_geometric.hpp>
 #include <glm/fwd.hpp>
 
@@ -42,8 +42,8 @@ void Engine::run(Scene &firstScene)
     loadScene(firstScene);
     std::vector<RenderData> renderData;
 
-    glm::vec3 eye {0.f, 0.f, 0.f};
-    glm::vec3 center {0.f, 0.f, 1.f};
+    glm::vec3 eye {0.f, 0.f, 10.0f};
+    glm::vec3 center {0.f, 0.f, 0.f};
     glm::vec3 up {0.f, 1.f, 0.f};
     renderData.push_back(RenderData {
 	    .transform = glm::lookAt(eye, center, up),
@@ -51,11 +51,16 @@ void Engine::run(Scene &firstScene)
 	    .data = firstScene.glftObjects[0].meshData,
 	    .indicesCount = firstScene.glftObjects[0].children[0].meshes[0].indexCount
 	    });
+    /*
     renderData[0].transform = glm::mat4x4(
 	    1.f, 0.f, 0.f, 0.f,
 	    0.f, 1.f, 0.f, 0.f,
-	    0.f, 0.f, 1.f, 0.f,
-	    0.f, 0.f, 0.f, 10.f);
+	    0.f, 0.f, 1.f, 1.f,
+	    0.f, 0.f, 0.f, 1.f);
+	    */
+
+    //renderData[0].transform *=  glm::perspective(glm::radians(45.0f), (float)width / (float)height, 0.1f, 256.0f)
+    renderData[0].transform = glm::perspectiveRH_NO(glm::radians(120.0f), 1.f, 0.3f, 256.0f) * renderData[0].transform;
     float angle = 0;
     while (!bQuit)
     {
@@ -87,7 +92,7 @@ void Engine::run(Scene &firstScene)
 	ImGui::Text("%f %f %f %f", x[1][0], x[1][1], x[1][2], x[1][3]);
 	ImGui::Text("%f %f %f %f", x[2][0], x[2][1], x[2][2], x[2][3]);
 	ImGui::Text("%f %f %f %f", x[3][0], x[3][1], x[3][2], x[3][3]);
-	renderData[0].transform = x * glm::rotate(glm::mat4x4(1.f), angle, glm::normalize(glm::vec3(1.f, 1.f, 0.f)));
+	renderData[0].transform = x * glm::rotate(glm::mat4x4(1.f), angle, glm::normalize(glm::vec3(0.f, 1.f, 0.f)));
 	//ImGui::ShowDemoWindow(&showDemoWindow);
 	ImGui::Render();
 	renderer->draw(renderData);

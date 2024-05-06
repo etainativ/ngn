@@ -49,7 +49,7 @@ namespace Pipeline {
 	pipeline.pipelineLayoutCI.pPushConstantRanges = &pipeline.bufferRange;
 
 	pipeline.depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	pipeline.depthStencil.depthTestEnable = VK_TRUE;
+	pipeline.depthStencil.depthTestEnable = VK_FALSE;
 	pipeline.depthStencil.depthWriteEnable = true;
 	pipeline.depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 	pipeline.depthStencil.depthBoundsTestEnable = VK_FALSE;

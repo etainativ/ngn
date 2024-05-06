@@ -32,7 +32,7 @@ void main()
 
 	//output data
 	//gl_Position = vec4(v.position, 1.0f);
-	gl_Position = vec4(v.position, 1.0f) * PushConstants.render_matrix;
+	gl_Position = PushConstants.render_matrix * vec4(v.position, 1.0f);
 	debugPrintfEXT("%d: %f, %f, %f", gl_VertexIndex, gl_Position.x, gl_Position.y, gl_Position.z);
 	outColor = vec3(1.0f, 0.0f, 0.0f);
 }
