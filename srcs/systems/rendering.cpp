@@ -1,12 +1,19 @@
-#include "engine/systems.h"
+#include "systems/rendering.h"
 #include "entt/entity/fwd.hpp"
 
 
-#include <iostream>
+void renderingCreate(entt::registry *entities) {
+}
 
 
 void renderingUpdate(entt::registry *entities) {
-    std::cout << "Updating" << "\n";
 }
 
-CREATE_SYSTEM(rendering, nullptr, nullptr, renderingUpdate, nullptr);
+struct System renderingSystem = {
+    .name = "rendering",
+    .stats = {},
+    .create = nullptr,
+    .update = renderingUpdate,
+    .fixedUpdate = nullptr,
+    .destroy = nullptr
+};

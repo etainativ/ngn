@@ -7,7 +7,6 @@
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
-#include <cstdlib>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/ext/quaternion_geometric.hpp>
 #include <glm/fwd.hpp>
@@ -38,18 +37,14 @@ Engine::~Engine() {
 }
 
 
-void Engine::gameLoop() {
-}
-
-
 void Engine::run(Scene& scene)
 {
     bool bQuit = false;
     std::vector<RenderData> bla;
     entt::registry entities;
     loadScene(scene);
-    struct SystemsData *systemsData = createSystems(scene, &entities);
-
+    struct SystemsData *systemsData = initSystems(scene.systems);
+    createSystems(systemsData, &entities);
     while (!bQuit)
     {
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
