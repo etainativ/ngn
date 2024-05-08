@@ -14,8 +14,8 @@ struct SystemsData {
 };
 
 
-void createSystems(SystemsData *data, entt::registry *entities) {
-    RUN_SYSTEMS(create, data, entities);
+void initSystems(SystemsData *data, entt::registry *entities) {
+    RUN_SYSTEMS(init, data, entities);
 };
 
 
@@ -35,7 +35,7 @@ void fixedUpdateSystems(SystemsData *data, entt::registry *entities) {
 };
 
 
-SystemsData *initSystems(std::vector<System*> systemsNames) {
+SystemsData *createSystems(std::vector<System*> systemsNames) {
     SystemsData *systems = new SystemsData;
     for (System *system : systemsNames) {
 	systems->systems.push_back(system);

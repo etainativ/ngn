@@ -9,7 +9,8 @@
 
 int main() {
     Scene scene;
-    scene.systems.push_back(&renderingSystem);
+    std::vector<System *> systems;
+    systems.push_back(&renderingSystem);
     scene.pipelines.push_back(Pipeline::initPipelineStruct(
 		"../shaders/vert.gls",
 		"../shaders/frag.gls"));
@@ -17,5 +18,5 @@ int main() {
 	    .filename = "../models/ship.gltf"});
 
     auto engine = Engine();
-    engine.run(scene);
+    engine.run(scene, systems);
 }

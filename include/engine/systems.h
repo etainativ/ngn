@@ -15,15 +15,15 @@ struct SystemStats {
 struct System {
     const char* name;
     SystemStats stats;
-    void (*create)(entt::registry*);
+    void (*init)(entt::registry*);
     void (*update)(entt::registry*);
     void (*fixedUpdate)(entt::registry*);
     void (*destroy)(entt::registry*);
 };
 
 
-SystemsData *initSystems(std::vector<System*> systemsNames);
-void createSystems(SystemsData *data, entt::registry *entities);
+SystemsData *createSystems(std::vector<System*> systemsNames);
+void initSystems(SystemsData *data, entt::registry *entities);
 void destroySystems(SystemsData *data, entt::registry *entities);
 void fixedUpdateSystems(SystemsData *data, entt::registry *entities);
 void updateSystems(SystemsData *data, entt::registry *entities);
