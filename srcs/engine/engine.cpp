@@ -1,5 +1,5 @@
 #include "engine/engine.h"
-#include "engine/systems.h"
+#include "engine/system.h"
 
 #include "GLFW/glfw3.h"
 extern GLFWwindow* __window;
@@ -17,8 +17,6 @@ void Engine::run(Scene& scene, std::vector<System *>& systems)
 	    bQuit = true;
 
 	glfwPollEvents();
-	// gamelogic
-	// imgui new frame
 	updateSystems(systemsData, &entities);
     }
 

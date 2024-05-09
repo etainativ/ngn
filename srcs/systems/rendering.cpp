@@ -1,5 +1,8 @@
-#include "systems/rendering.h"
+#include "engine/system.h"
+#include "engine/glft_object.h"
+#include "engine/pipeline.h"
 #include "engine/rendering/renderer.h"
+#include "components/render_comp.h"
 
 #include "entt/entity/fwd.hpp"
 #include "backends/imgui_impl_glfw.h"
@@ -25,6 +28,17 @@ void renderingInit(entt::registry *entities) {
     __renderer = new Renderer(__window);
     glfwSetWindowUserPointer(__window, __renderer);
     glfwSetFramebufferSizeCallback(__window, resizeCallback);
+
+    std::set<Pipeline::Pipeline*> pipelines;
+    auto view = entities->view<RenderComponentInitData>();
+    for (const entt::entity e : view) {
+	RenderComponentInitData &data = view.get<RenderComponentInitData>(e);
+	pipelines.insert(data.pipeline);
+	GlftObject::loadGlftObject(*data.glftObject, __renderer);
+    }
+
+    for (auto pipeline : pipelines)
+	__renderer->loadPipeline(*pipeline);
 }
 
 
@@ -38,6 +52,17 @@ void renderingUpdate(entt::registry *entities) {
 
 
 void renderingDestroy(entt::registry *entities) {
+    std::set<Pipeline::Pipeline*> pipelines;
+    auto view = entities->view<RenderComponentInitData>();
+    for (const entt::entity e : view) {
+	RenderComponentInitData &data = view.get<RenderComponentInitData>(e);
+	pipelines.insert(data.pipeline);
+	GlftObject::unloadGlftObject(*data.glftObject, __renderer);
+    }
+
+    for (auto pipeline : pipelines)
+	__renderer->unloadPipeline(*pipeline);
+
     delete __renderer;
     glfwDestroyWindow(__window);
     glfwTerminate();

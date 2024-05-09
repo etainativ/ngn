@@ -24,11 +24,9 @@ namespace Pipeline {
 	const char *fragShaderFP;
 
 	std::vector<VkPipelineShaderStageCreateInfo> stages;
+	Pipeline(const char *vertextShader, const char *fragShaderFP);
     };
 
-    Pipeline initPipelineStruct(
-	    const char *vertextShader,
-	    const char *fragShaderFP);
 
     VkPipeline createPipeline(
 	    Pipeline &pipeline,

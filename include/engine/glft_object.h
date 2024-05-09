@@ -22,6 +22,7 @@ namespace GlftObject {
 	std::string filename;
 	std::vector<GlftNode> children;
 	RendererMeshData *meshData;
+	GlftObject(std::string filename) : filename(filename){};
     };
 
     void loadGlftObject(GlftObject& glftObject, Renderer *renderer);
