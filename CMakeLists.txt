@@ -24,6 +24,7 @@ SET(CMAKE_CXX_FLAGS_RELEASE "-Wall -O3")
 
 add_subdirectory(srcs/engine)
 add_subdirectory(srcs/systems)
+add_subdirectory(srcs/networking)
 add_subdirectory(srcs/utils)
 add_subdirectory(external/imgui)
 add_subdirectory(external/glfw)
@@ -32,5 +33,9 @@ add_executable(${PROJECT_NAME} srcs/main.cpp)
 target_link_libraries(${PROJECT_NAME} systems engine)
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 	COMMAND "${CMAKE_COMMAND}" -E copy_directory ../models models
-	COMMAND "${CMAKE_COMMAND}" -E copy_directory ../shaders shader
+	COMMAND "${CMAKE_COMMAND}" -E copy_directory ../shaders shaders
 )
+
+
+add_executable(TransportTester tests/networking.cpp)
+target_link_libraries(TransportTester networking)

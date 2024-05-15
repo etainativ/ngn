@@ -1,11 +1,13 @@
 #include "utils/file.h"
 #include <fstream>
+#include <iostream>
 
 namespace utils {
     std::vector<uint32_t> readFile(const char *fp) {
 	std::ifstream file(fp, std::ios::ate | std::ios::binary);
 
 	if (!file.is_open()) {
+	    std::cout << "Failed opening file: " << fp << "\n";
 	    abort();
 	}
 

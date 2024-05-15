@@ -1,4 +1,5 @@
 #include "engine/glft_object.h"
+#include "engine/rendering/renderer.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <stdexcept>

@@ -1,8 +1,10 @@
 #pragma once
-#include "engine/rendering/renderer.h"
+#include <glm/glm.hpp>
 #include <vector>
 #include <string>
 
+class Renderer;
+struct RendererMeshData;
 namespace GlftObject {
     struct GlftMesh {
 	uint32_t firstIndex;

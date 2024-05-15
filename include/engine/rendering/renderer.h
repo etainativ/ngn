@@ -1,9 +1,10 @@
 #pragma once
 
+#include "engine/glft_object.h"
 #include "engine/pipeline.h"
 #include "engine/mesh.h"
 #include "vk_types.h"
-#include <glm/fwd.hpp>
+#include <glm/glm.hpp>
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -39,6 +40,9 @@ struct Image {
     VkFormat imageFormat;
 };
 
+struct DrawContext {
+    VkCommandBuffer cmd;
+};
 
 class Renderer {
     public:
@@ -68,8 +72,14 @@ class Renderer {
 	void loadPipeline(Pipeline::Pipeline& pipeline);
 	void unloadPipeline(Pipeline::Pipeline& pipeline);
 
-	//scene
-	void draw(std::vector<RenderData>& renderData);
+	// Drawing
+	VkCommandBuffer startDraw();
+	void draw(
+		VkCommandBuffer cmd,
+		Pipeline::Pipeline *pipeline,
+		GlftObject::GlftObject *glftObj,
+		glm::mat4x4 transform);
+	void finishDraw(VkCommandBuffer cmd);
 
     private:
 	int frameNumber = 0;
@@ -118,5 +128,13 @@ class Renderer {
 		FrameData &currFrame,
 		uint32_t &swapchainImageIndex);
 	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
+
+	// drawing helpers
+	void drawNode(
+		VkCommandBuffer cmd,
+		VkDeviceAddress address,
+		Pipeline::Pipeline *pipeline,
+		glm::mat4x4 transform,
+		GlftObject::GlftNode &node);
 
 };

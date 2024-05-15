@@ -1,15 +1,21 @@
+#include "GLFW/glfw3.h"
 #include "engine/system.h"
 #include "engine/glft_object.h"
 #include "engine/pipeline.h"
 #include "engine/rendering/renderer.h"
-#include "components/render_comp.h"
+#include "engine/camera.h"
+
+#include "components/instancer.h"
+#include "components/translation.h"
 
 #include "entt/entity/fwd.hpp"
 #include "backends/imgui_impl_glfw.h"
 
 
+
 Renderer *__renderer = nullptr;
 GLFWwindow* __window = nullptr;
+extern bool isMainLoopRunning;
 
 
 void resizeCallback(GLFWwindow* window, int width, int height) {
@@ -30,9 +36,9 @@ void renderingInit(entt::registry *entities) {
     glfwSetFramebufferSizeCallback(__window, resizeCallback);
 
     std::set<Pipeline::Pipeline*> pipelines;
-    auto view = entities->view<RenderComponentInitData>();
+    auto view = entities->view<RenderInitDataComponent>();
     for (const entt::entity e : view) {
-	RenderComponentInitData &data = view.get<RenderComponentInitData>(e);
+	auto &data = view.get<RenderInitDataComponent>(e);
 	pipelines.insert(data.pipeline);
 	GlftObject::loadGlftObject(*data.glftObject, __renderer);
     }
@@ -43,19 +49,33 @@ void renderingInit(entt::registry *entities) {
 
 
 void renderingUpdate(entt::registry *entities) {
-    std::vector<RenderData> bla;
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+    ImGui::Text("Pos %f %f %f", camera.pos[0], camera.pos[1], camera.pos[2]);
+    ImGui::Text("Target %f %f %f", camera.target[0], camera.target[1], camera.target[2]);
+    ImGui::Text("Up %f %f %f", camera.up[0], camera.up[1], camera.up[2]);
     ImGui::Render();
-    __renderer->draw(bla);
+    VkCommandBuffer cmd = __renderer->startDraw();
+    for(auto &&[entity, rend, pos]: entities->view<renderable, translation>().each()) {
+	auto &renderData = entities->get<RenderInitDataComponent>(rend.entity);
+	Pipeline::Pipeline *pipeline = renderData.pipeline;
+	GlftObject::GlftObject *glftObj = renderData.glftObject;
+	__renderer->draw(cmd, pipeline, glftObj, camera.matrix * pos.value);
+    }
+
+    __renderer->finishDraw(cmd);
+
+    if (glfwGetKey(__window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+	isMainLoopRunning = false;
+    glfwPollEvents();
 }
 
 
 void renderingDestroy(entt::registry *entities) {
     std::set<Pipeline::Pipeline*> pipelines;
-    auto view = entities->view<RenderComponentInitData>();
+    auto view = entities->view<RenderInitDataComponent>();
     for (const entt::entity e : view) {
-	RenderComponentInitData &data = view.get<RenderComponentInitData>(e);
+	RenderInitDataComponent &data = view.get<RenderInitDataComponent>(e);
 	pipelines.insert(data.pipeline);
 	GlftObject::unloadGlftObject(*data.glftObject, __renderer);
     }

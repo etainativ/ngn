@@ -1,5 +1,7 @@
 #include "engine/rendering/renderer.h"
+#include "engine/pipeline.h"
 #include <glm/fwd.hpp>
+#include <vulkan/vulkan_core.h>
 
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
@@ -623,8 +625,7 @@ void Renderer::presentImage(
     VK_CHECK(vkQueuePresentKHR(graphicsQueue, &presentInfo));
 }
 
-void Renderer::draw(std::vector<RenderData>& renderData)
-{
+VkCommandBuffer Renderer::startDraw() {
     FrameData& currFrame = frames[frameNumber % FRAME_OVERLAP];
 
     VK_CHECK(vkWaitForFences(device, 1, &currFrame.renderFence, true, wait));
@@ -703,47 +704,79 @@ void Renderer::draw(std::vector<RenderData>& renderData)
 
     transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     vkCmdBeginRendering(cmd, &renderInfo);
+    return cmd;
+}
 
-    for (auto &obj : renderData) {
+void Renderer::drawNode(
+	VkCommandBuffer cmd,
+	VkDeviceAddress address,
+	Pipeline::Pipeline *pipeline,
+	glm::mat4x4 transform,
+	GlftObject::GlftNode &node)
+{
 
-	GPUDrawPushConstants pushConstants = {
-	    .worldMatrix = obj.transform,
-	    .vertexBuffer = obj.data->vertexBuffer.address
-	};
+    transform = transform * node.transform;
+    GPUDrawPushConstants pushConstants = {
+	.worldMatrix = transform,
+	.vertexBuffer = address
+    };
 
-    	//set dynamic viewport and scissor
-	VkViewport viewport = {};
-	viewport.x = 0;
-	viewport.y = 0;
-	viewport.width = drawImage.imageExtent.width;
-	viewport.height = drawImage.imageExtent.height;
-	viewport.minDepth = 0.f;
-	viewport.maxDepth = 1.f;
+    vkCmdPushConstants(
+	    cmd,
+	    pipeline->pipelineLayout,
+	    VK_SHADER_STAGE_VERTEX_BIT, 0,
+	    sizeof(GPUDrawPushConstants), (void*)&pushConstants);
+    for (auto mesh : node.meshes)
+	vkCmdDrawIndexed(cmd, mesh.indexCount, 1, mesh.firstIndex, 0, 0);
+    for (auto child : node.children)
+	drawNode(cmd, address, pipeline, transform, child);
+}
 
-	vkCmdSetViewport(cmd, 0, 1, &viewport);
+void Renderer::draw(
+	VkCommandBuffer cmd,
+	Pipeline::Pipeline *pipeline,
+	GlftObject::GlftObject *glftObj,
+	glm::mat4x4 transform)
+{
+    auto meshData = glftObj->meshData;
+    //set dynamic viewport and scissor
+    VkViewport viewport = {};
+    viewport.x = 0;
+    viewport.y = 0;
+    viewport.width = drawImage.imageExtent.width;
+    viewport.height = drawImage.imageExtent.height;
+    viewport.minDepth = 0.f;
+    viewport.maxDepth = 1.f;
 
-	VkRect2D scissor = {};
-	scissor.offset.x = 0;
-	scissor.offset.y = 0;
-	scissor.extent.width = drawImage.imageExtent.width;
-	scissor.extent.height = drawImage.imageExtent.height;
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
 
-	vkCmdSetScissor(cmd, 0, 1, &scissor);
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, obj.pipeline->vkPipeline);
-	vkCmdPushConstants(
-		cmd,
-		obj.pipeline->pipelineLayout,
-		VK_SHADER_STAGE_VERTEX_BIT, 0,
-		sizeof(GPUDrawPushConstants), (void*)&pushConstants);
-	vkCmdBindIndexBuffer(cmd, obj.data->indicesBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdDrawIndexed(cmd, obj.indicesCount, 1, 0, 0, 0);
+    VkRect2D scissor = {};
+    scissor.offset.x = 0;
+    scissor.offset.y = 0;
+    scissor.extent.width = drawImage.imageExtent.width;
+    scissor.extent.height = drawImage.imageExtent.height;
+
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->vkPipeline);
+    vkCmdBindIndexBuffer(cmd, meshData->indicesBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    for (GlftObject::GlftNode &node : glftObj->children) {
+	drawNode(cmd, glftObj->meshData->vertexBuffer.address, pipeline, transform, node);
     }
+}
+
+
+void Renderer::finishDraw(VkCommandBuffer cmd) {
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
     vkCmdEndRendering(cmd);
 
+    VkExtent2D imageExtent = {
+	.width = drawImage.imageExtent.width,
+	.height = drawImage.imageExtent.height};
+
     //request image from the swapchain
     uint32_t swapchainImageIndex;
+    FrameData& currFrame = frames[frameNumber % FRAME_OVERLAP];
     VK_CHECK(vkAcquireNextImageKHR(device, swapchain, wait, currFrame.swapchainSemaphore, nullptr, &swapchainImageIndex));
 
     //transition the draw image and the swapchain image into their correct transfer layouts
@@ -812,8 +845,7 @@ RendererMeshData* Renderer::loadMesh(
     //create index buffer
     mesh->indicesBuffer = create_buffer(
 	    indicesBufferSize,
-	    VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-	    VMA_MEMORY_USAGE_GPU_ONLY);
+	    VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,	    VMA_MEMORY_USAGE_GPU_ONLY);
 
     AllocatedBuffer staging = create_buffer(
 	    vertexBufferSize + indicesBufferSize,
