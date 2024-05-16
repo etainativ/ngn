@@ -14,11 +14,8 @@ void startServer() {
 	exit(1);
     }
     while (1) {
-	struct Datagram data;
-	token_t token = 4321;
-	data.data = (void*)"1234";
-	data.size = 4;
-	serverUpdate(server);
+	struct Datagram data = {};
+	token_t token;
 	serverRecv(server, &data, &token);
 	if (data.data) {
 	    for (int x=0; x<data.size; x++) {
@@ -26,7 +23,6 @@ void startServer() {
 	    }
 	    printf("\n");
 	    serverSend(server, data, token);
-	    dataRelease(data);
 	}
     }
 }
@@ -36,20 +32,17 @@ void startClient() {
     struct Client *client = clientInit("127.0.0.1", 1234, 127837);
     while (1) {
 	char msg[30] = {};
-	clientUpdate(client);
 	scanf("%s", &msg);
 	struct Datagram data;
 	data.data = msg;
 	data.size = 30;
 	clientSend(client, data);
-	clientUpdate(client);
 	clientRecv(client, &data);
 	if (data.data) {
 	    for (int x=0; x<data.size; x++) {
 		printf("%c", ((char *)data.data)[x]);
 	    }
 	    printf("\n");
-	    dataRelease(data);
 	}
 	
     }

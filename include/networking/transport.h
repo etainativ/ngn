@@ -21,10 +21,5 @@ void serverSendAll(struct Server *server, struct Datagram data);
 void clientRecv(struct Client *client, struct Datagram *data);
 void serverRecv(struct Server *server, struct Datagram *data, token_t *token);
 
-void dataRelease(struct Datagram data);
-
-void clientUpdate(struct Client *client);
-void serverUpdate(struct Server *server);
-
 void clientDestroy(struct Client *client);
 void serverDestroy(struct Server *server);

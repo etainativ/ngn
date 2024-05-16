@@ -1,8 +1,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <cstring>
-#include <queue>
 #include <map>
 
 #include "networking/transport.h"
@@ -28,13 +26,10 @@ struct Message {
 };
 
 
-typedef std::queue<Message> msgqueue_t;
-
 struct Client {
     int fd;
     struct sockaddr_in serverAddr;
     token_t token;
-    msgqueue_t messageQueue;
     uint8_t recvBuffer[MAX_DATA_SIZE + sizeof(MessageHeader)];
 
     Client(int fd, struct sockaddr_in serverAddr, token_t token) :
@@ -46,7 +41,6 @@ struct Server {
     int fd;
     int (*validator)(token_t token);
     uint32_t msgid = 0;
-    msgqueue_t messageQueue;
     std::map<token_t, sockaddr_in> connectionMap;
     uint8_t recvBuffer[MAX_DATA_SIZE + sizeof(MessageHeader)];
 
@@ -93,33 +87,6 @@ struct Server *serverInit(uint16_t port, int (*validator)(token_t token)) {
 }
 
 
-void clientUpdate(struct Client *client) {
-    struct MessageHeader *header = (struct MessageHeader *)client->recvBuffer;
-    while (recvfrom(client->fd, client->recvBuffer, MAX_DATA_SIZE, MSG_DONTWAIT, nullptr, 0) > 0) {
-	uint8_t *data = new uint8_t[header->dataSize];
-	std::memcpy(data, header + 1, header->dataSize);
-	client->messageQueue.push({header->token, header->dataSize, data});
-    }
-}
-
-
-void serverUpdate(struct Server *server) {
-    sockaddr_in address;
-    socklen_t len = sizeof(address);
-    struct MessageHeader *header = (struct MessageHeader *)server->recvBuffer;
-    while (recvfrom(server->fd, server->recvBuffer, MAX_DATA_SIZE, MSG_DONTWAIT,
-		(struct sockaddr *)&address, &len) > 0) {
-	// if message not valid we continue the loop and ignore this msg
-	if (server->validator and !server->validator(header->token)) continue;
-
-	server->connectionMap[header->token] = address;
-	uint8_t *data = new uint8_t[header->dataSize];
-	std::memcpy(data, header + 1, header->dataSize);
-	server->messageQueue.push({header->token, header->dataSize, data});
-    }
-}
-
-
 int sendMesg(int fd, token_t token, sockaddr_in *address, struct Datagram data) {
     MessageHeader header = {};
     header.dataSize = data.size;
@@ -162,29 +129,33 @@ void serverSendAll(Server *server, struct Datagram data) {
 
 
 void clientRecv(struct Client *client, struct Datagram *data) {
-    if (client->messageQueue.empty()) {
+    struct MessageHeader *header = (struct MessageHeader *)client->recvBuffer;
+    if (recvfrom(client->fd, client->recvBuffer, MAX_DATA_SIZE, MSG_DONTWAIT, nullptr, 0) <= 0) {
 	data->data = nullptr;
 	return;
     }
-    Message msg = client->messageQueue.front();
-    data->data = msg.data;
-    data->size = msg.dataSize;
-    client->messageQueue.pop();
+
+    // check token is valid??
+    data->data = header + 1;
+    data->size = header->dataSize;
 }
 
 
 void serverRecv(struct Server *server, struct Datagram *data, token_t *token) {
-    if (server->messageQueue.empty()) {
-	data->data = nullptr;
+    sockaddr_in address;
+    socklen_t len = sizeof(address);
+    struct MessageHeader *header = (struct MessageHeader *)server->recvBuffer;
+    while (recvfrom(server->fd, server->recvBuffer, MAX_DATA_SIZE, MSG_DONTWAIT,
+		(struct sockaddr *)&address, &len) > 0) {
+
+	// if message not valid we continue the loop and ignore this msg
+	if (server->validator and !server->validator(header->token)) continue;
+
+	server->connectionMap[header->token] = address;
+	*token = header->token;
+	data->size = header->dataSize;
+	data->data = header + 1;
 	return;
     }
-    Message msg = server->messageQueue.front();
-    data->data = msg.data;
-    data->size = msg.dataSize;
-    *token = msg.token;
-    server->messageQueue.pop();
-}
-
-void dataRelease(struct Datagram data) {
-    delete[] (uint8_t *)data.data;
+    data->data = nullptr;
 }
