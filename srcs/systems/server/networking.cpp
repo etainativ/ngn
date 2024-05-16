@@ -1,7 +1,7 @@
 #include "engine/system.h"
 
 
-struct System NetworkSystem = {
+struct System ServerNetworkSystem = {
     .name = "NetworkSystem",
     .stats = {},
     .init = nullptr,

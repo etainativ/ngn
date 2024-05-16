@@ -30,7 +30,7 @@ add_subdirectory(external/imgui)
 add_subdirectory(external/glfw)
 
 add_executable(${PROJECT_NAME} srcs/main.cpp)
-target_link_libraries(${PROJECT_NAME} systems engine)
+target_link_libraries(${PROJECT_NAME} client_systems engine)
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 	COMMAND "${CMAKE_COMMAND}" -E copy_directory ../models models
 	COMMAND "${CMAKE_COMMAND}" -E copy_directory ../shaders shaders
