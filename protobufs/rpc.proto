@@ -7,6 +7,6 @@ message NetworkRPCMessage {
   uint32 msgid = 1;
   oneof networkRPCMessageType {
     RPCClientConnect clientConnect = 2;
-    RPCServerAck serverack = 3;
+    RPCServerAck messageAck = 3;
   }
 }

@@ -1,0 +1,6 @@
+find_package(Protobuf REQUIRED FATAL_ERROR)
+file(GLOB ProtoFiles "*.proto")
+include_directories(${Protobuf_INCLUDE_DIRS})
+protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${ProtoFiles})
+add_library(messages ${PROTO_SRCS})
+target_link_libraries(messages ${Protobuf_LIBRARIES})

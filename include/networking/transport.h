@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-typedef uint32_t msgsize_t;
+typedef unsigned long msgsize_t;
 typedef uint64_t token_t;
 
 struct Client;

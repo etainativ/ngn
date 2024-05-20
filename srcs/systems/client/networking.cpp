@@ -1,26 +1,23 @@
 #include "engine/system.h"
+#include "entt/entity/fwd.hpp"
 #include "networking/transport.h"
+#include "networking/rpc.h"
 #include "configuration/global.h"
 #include "time.h"
+#include "protobufs/msgs.pb.h"
+#include "protobufs/rpc.pb.h"
 
-#include "msgs.pb.h"
-#include "rpc.pb.h"
-#include <google/protobuf/arena.h>
-#include <string>
 #define MAX_INFLISHGT_TIME 5 * CLOCKS_PER_SEC
 
 Client *client;
 uint32_t __msgId = 10;
-struct inFlightRPCInfo {
-    clock_t timeSent;
-    NetworkRPCMessage *rpc;
-};
-std::map<uint32_t, inFlightRPCInfo> inFlightRPCMessages;
+
+inFlightRPCMessages_t inFlightRPCMessages;
 google::protobuf::Arena rpcArena;
 
 void handleRPCMessage(const NetworkRPCMessage &rpc) {
     switch (rpc.networkRPCMessageType_case()) {
-	case NetworkRPCMessage::kServerack:
+	case NetworkRPCMessage::kMessageAck:
 	    if (inFlightRPCMessages.find(rpc.msgid()) != inFlightRPCMessages.end()) {
 		delete inFlightRPCMessages[rpc.msgid()].rpc;
 		inFlightRPCMessages.erase(rpc.msgid());
@@ -52,18 +49,18 @@ void readMessages() {
 	    case NetworkMessage::NETWORKMESSAGETYPE_NOT_SET:
 		// TODO log error
 		break;
-
 	}
     }
 }
 
 
 void sendMsg(NetworkMessage &msg) {
-    std::string data = msg.SerializeAsString();
-    Datagram dg = {
-	.size = uint32_t(data.size()),
-	.data = (void *)data.c_str()};
-    clientSend(client, dg);
+    size_t size = msg.ByteSizeLong();
+    void *data = new char[size];
+    if (msg.SerializeToArray(data, size)) {
+	Datagram dg = { .size = size, .data = data };
+       	clientSend(client, dg);
+    }
 }
 
 
@@ -99,9 +96,19 @@ void retrySends() {
     }
 }
 
+
 void updateClientNetworkSystem(entt::registry *entities) {
     readMessages();
     retrySends();
+}
+
+
+void destroyClientNetworkSystem(entt::registry *entities) {
+    clientDestroy(client);
+    for (auto &[msgId, msgInfo] : inFlightRPCMessages) {
+	delete msgInfo.rpc;
+	inFlightRPCMessages.erase(msgId);
+    }
 }
 
 
@@ -111,5 +118,5 @@ struct System ClientNetworkSystem = {
     .init = initClientNetworkSystem,
     .update = updateClientNetworkSystem,
     .fixedUpdate = nullptr,
-    .destroy = nullptr
+    .destroy = destroyClientNetworkSystem
 };
