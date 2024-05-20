@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+import "rpc.proto";
+import "snapshot.proto";
+import "input.proto";
+
+message NetworkMessage {
+  oneof networkMessageType {
+    NetwrokRPCMessage rpcMessage = 1;
+    NetworkInputMessage inputMessage = 2;
+    NetworkSnapshotMessasge snapshotMessage = 3;
+  }
+}

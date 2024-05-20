@@ -128,20 +128,21 @@ void serverSendAll(Server *server, struct Datagram data) {
 }
 
 
-void clientRecv(struct Client *client, struct Datagram *data) {
+int clientRecv(struct Client *client, struct Datagram *data) {
     struct MessageHeader *header = (struct MessageHeader *)client->recvBuffer;
     if (recvfrom(client->fd, client->recvBuffer, MAX_DATA_SIZE, MSG_DONTWAIT, nullptr, 0) <= 0) {
 	data->data = nullptr;
-	return;
+	return 0;
     }
 
     // check token is valid??
     data->data = header + 1;
     data->size = header->dataSize;
+    return 1;
 }
 
 
-void serverRecv(struct Server *server, struct Datagram *data, token_t *token) {
+int serverRecv(struct Server *server, struct Datagram *data, token_t *token) {
     sockaddr_in address;
     socklen_t len = sizeof(address);
     struct MessageHeader *header = (struct MessageHeader *)server->recvBuffer;
@@ -155,7 +156,8 @@ void serverRecv(struct Server *server, struct Datagram *data, token_t *token) {
 	*token = header->token;
 	data->size = header->dataSize;
 	data->data = header + 1;
-	return;
+	return 0;
     }
     data->data = nullptr;
+    return 1;
 }

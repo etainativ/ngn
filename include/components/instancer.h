@@ -14,6 +14,7 @@ struct renderable {
     entt::entity entity;
 };
 
+
 enum instanceType {
     SHIP
 };
