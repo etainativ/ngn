@@ -6,7 +6,7 @@ import "input.proto";
 
 message NetworkMessage {
   oneof networkMessageType {
-    NetwrokRPCMessage rpcMessage = 1;
+    NetworkRPCMessage rpcMessage = 1;
     NetworkInputMessage inputMessage = 2;
     NetworkSnapshotMessasge snapshotMessage = 3;
   }

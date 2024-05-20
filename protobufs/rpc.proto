@@ -1,17 +1,12 @@
 syntax = "proto3";
 
 
-message RPCClientConnect {
-  uint32 msgid = 1;
-};
-
-message RPCServerAck {
-  uint32 msgid = 1;
-};
-
+message RPCClientConnect {};
+message RPCServerAck {};
 message NetworkRPCMessage {
+  uint32 msgid = 1;
   oneof networkRPCMessageType {
-    RPCClientConnect clientConnect = 1;
-    RPCServerAck serverack = 2;
+    RPCClientConnect clientConnect = 2;
+    RPCServerAck serverack = 3;
   }
 }

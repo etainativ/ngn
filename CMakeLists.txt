@@ -9,8 +9,11 @@ cmake_minimum_required(VERSION 3.10)
 project(swe)
 
 find_package(Vulkan REQUIRED FATAL_ERROR)
+find_package(Protobuf REQUIRED FATAL_ERROR)
 
 include_directories(include)
+include_directories(srcs/protobufs)
+
 include_directories(external/imgui)
 include_directories(external/tinygltf)
 include_directories(external/entt/src)
@@ -24,6 +27,7 @@ SET(CMAKE_CXX_FLAGS_RELEASE "-Wall -O3")
 
 SET(CLIENT clinet)
 add_subdirectory(srcs/engine)
+add_subdirectory(srcs/protobufs)
 add_subdirectory(srcs/systems)
 add_subdirectory(srcs/networking)
 add_subdirectory(srcs/utils)
@@ -31,7 +35,7 @@ add_subdirectory(external/imgui)
 add_subdirectory(external/glfw)
 
 add_executable(${CLIENT} srcs/client.cpp)
-target_link_libraries(${CLIENT} client_systems networking engine)
+target_link_libraries(${CLIENT} client_systems protobuf protobufs networking engine)
 add_custom_command(TARGET ${CLIENT} POST_BUILD
 	COMMAND "${CMAKE_COMMAND}" -E copy_directory ../models models
 	COMMAND "${CMAKE_COMMAND}" -E copy_directory ../shaders shaders
