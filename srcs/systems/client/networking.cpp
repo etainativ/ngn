@@ -1,13 +1,13 @@
 #include "engine/system.h"
+#include "engine/time.h"
 #include "entt/entity/fwd.hpp"
 #include "networking/transport.h"
 #include "networking/rpc.h"
 #include "configuration/global.h"
-#include "time.h"
 #include "protobufs/msgs.pb.h"
 #include "protobufs/rpc.pb.h"
 
-#define MAX_INFLISHGT_TIME 5 * CLOCKS_PER_SEC
+#define MAX_INFLIGHT_TICKS 60
 
 Client *client;
 uint32_t __msgId = 10;
@@ -66,7 +66,7 @@ void sendMsg(NetworkMessage &msg) {
 
 void sendRPC(NetworkRPCMessage *rpc, uint32_t msgId) {
     rpc->set_msgid(msgId);
-    inFlightRPCMessages[msgId] = {clock(), rpc};
+    inFlightRPCMessages[msgId] = {getCurrentTick(), rpc};
     NetworkMessage msg;
     msg.set_allocated_rpcmessage(rpc);
     sendMsg(msg);
@@ -88,9 +88,8 @@ void initClientNetworkSystem(entt::registry *entities) {
 
 
 void retrySends() {
-    clock_t now = clock();
     for (auto &[msgId, msgInfo] : inFlightRPCMessages) {
-	if ((now - msgInfo.timeSent) > MAX_INFLISHGT_TIME)
+	if ((getCurrentTick() - msgInfo.tickSent) > MAX_INFLIGHT_TICKS)
 	    // TODO log
 	    sendRPC(msgInfo.rpc, msgId);
     }

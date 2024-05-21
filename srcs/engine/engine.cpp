@@ -1,5 +1,6 @@
 #include "engine/engine.h"
 #include "engine/system.h"
+#include "engine/time.h"
 
 bool isMainLoopRunning = true;
 void run(std::vector<System *>& systems)
@@ -9,7 +10,11 @@ void run(std::vector<System *>& systems)
     initSystems(systemsData, &entities);
     while (isMainLoopRunning)
     {
+	updateDeltaTime();
 	updateSystems(systemsData, &entities);
+	if (isFixedUpdate()) {
+	    fixedUpdateSystems(systemsData, &entities);
+	};
     }
 
     destroySystems(systemsData, &entities);

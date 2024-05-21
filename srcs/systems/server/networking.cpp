@@ -28,7 +28,7 @@ void removeEntry(token_t token, uint32_t msgId) {
 	//log??
 	return;
     }
-    clientInFlightRPCMessages_t clientRPCs = inFlightRPCMessages[token];
+    inFlightRPCMessages_t clientRPCs = inFlightRPCMessages[token];
     if (clientRPCs.find(msgId) == clientRPCs.end()) {
 	// log??
 	return;
@@ -39,7 +39,6 @@ void removeEntry(token_t token, uint32_t msgId) {
 
 
 void initPlayer(token_t token) {
-    sendRPC()
 }
 
 

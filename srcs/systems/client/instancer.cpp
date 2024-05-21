@@ -4,6 +4,7 @@
 #include "entt/entity/fwd.hpp"
 #include "components/instancer.h"
 #include "components/translation.h"
+#include "components/velocity.h"
 
 
 entt::entity __intancerShipEntity;
@@ -15,6 +16,7 @@ void createEntity(entt::registry *entities, instanceType type) {
 	    auto e = entities->create();
 	    entities->emplace<renderable>(e, __intancerShipEntity);
 	    entities->emplace<translation>(e, glm::mat4x4(1.f));
+	    entities->emplace<velocity2D>(e, glm::vec2(0.f));
 	    break;
     }
 }

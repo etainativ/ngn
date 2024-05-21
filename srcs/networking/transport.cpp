@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 #include <map>
 
 #include "networking/transport.h"
@@ -160,4 +161,10 @@ int serverRecv(struct Server *server, struct Datagram *data, token_t *token) {
     }
     data->data = nullptr;
     return 1;
+}
+
+
+void clientDestroy(struct Client *client) {
+    close(client->fd);
+    delete client;
 }
