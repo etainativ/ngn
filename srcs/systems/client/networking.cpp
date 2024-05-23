@@ -104,14 +104,11 @@ void updateClientNetworkSystem(entt::registry *entities) {
 
 void destroyClientNetworkSystem(entt::registry *entities) {
     clientDestroy(client);
-    for (auto &[msgId, msgInfo] : inFlightRPCMessages) {
-	delete msgInfo.rpc;
-	inFlightRPCMessages.erase(msgId);
-    }
+    // clean Messages in flight
 }
 
 
-struct System ClientNetworkSystem = {
+struct System clientNetworkSystem = {
     .name = "NetworkSystem",
     .stats = {},
     .init = initClientNetworkSystem,

@@ -3,8 +3,9 @@
 #include "engine/system.h"
 #include "entt/entity/fwd.hpp"
 #include "components/instancer.h"
-#include "components/translation.h"
+#include "components/transform.h"
 #include "components/velocity.h"
+#include "components/tags.h"
 
 
 entt::entity __intancerShipEntity;
@@ -15,11 +16,14 @@ void createEntity(entt::registry *entities, instanceType type) {
 	case SHIP:
 	    auto e = entities->create();
 	    entities->emplace<renderable>(e, __intancerShipEntity);
-	    entities->emplace<translation>(e, glm::mat4x4(1.f));
-	    entities->emplace<velocity2D>(e, glm::vec2(0.f));
+	    entities->emplace<transform>(e, glm::mat4x4(1.f));
+	    entities->emplace<velocity>(e, glm::vec3(0.f));
+	    entities->emplace<angularVelocity2D>(e, 0.f);
+	    entities->emplace<playersEntity>(e);
 	    break;
     }
 }
+
 
 void instancerInit(entt::registry *entities) {
     __intancerShipEntity = entities->create();

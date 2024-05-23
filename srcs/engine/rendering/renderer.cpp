@@ -14,11 +14,10 @@
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
 
-#ifdef NDEBUG
-const bool bUseValidationLayers = false;
-#else
-#include <glm/ext/matrix_transform.hpp>
+#ifdef DEBUG
 const bool bUseValidationLayers = true;
+#else
+const bool bUseValidationLayers = false;
 #endif
 
 const VkBool32 wait = 1000000000;

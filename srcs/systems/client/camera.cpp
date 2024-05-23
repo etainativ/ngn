@@ -1,13 +1,11 @@
 #include "engine/system.h"
 #include "engine/camera.h"
 
-#include "components/translation.h"
-
 #include <X11/X.h>
 #include <entt/entt.hpp>
 #include <GLFW/glfw3.h>
 #include <glm/ext/quaternion_transform.hpp>
-#include "glm/gtc/matrix_transform.hpp"
+#include <glm/ext/matrix_transform.hpp>
 
 
 extern GLFWwindow* __window;

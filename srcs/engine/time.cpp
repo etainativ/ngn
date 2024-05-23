@@ -3,13 +3,13 @@
 #include <ctime>
 #include <time.h>
 
-#define FIXED_UPDATES_PER_SECOND 60
 const double FIXED_UPDATE_INTERVAL = 1.0 / FIXED_UPDATES_PER_SECOND;
 
 struct TimeData {
-    clock_t lastClock = clock();
-    clock_t deltaTime;
-    clock_t timeToFixedUpdate = FIXED_UPDATE_INTERVAL;
+    clock_t lastClock;
+    clock_t startClock;
+    double deltaTime;
+    double accumaltedDeltaTime = 0;
     tick_t currentTick = 0;
 } __timeData;
 
@@ -31,17 +31,29 @@ void resetCurrentTick(tick_t newTick) {
 
 void updateDeltaTime() {
     clock_t current = clock();
-    __timeData.deltaTime = (current - __timeData.lastClock) / CLOCKS_PER_SEC;
+    __timeData.deltaTime = double(current - __timeData.lastClock) / CLOCKS_PER_SEC;
     __timeData.lastClock = current;
-    __timeData.timeToFixedUpdate -= __timeData.deltaTime;
+    __timeData.accumaltedDeltaTime += __timeData.deltaTime;
 }
 
 
 bool isFixedUpdate() {
-    if (__timeData.timeToFixedUpdate < 0) {
-	__timeData.timeToFixedUpdate = FIXED_UPDATE_INTERVAL;
-	__timeData.currentTick++;
+    if (__timeData.accumaltedDeltaTime > FIXED_UPDATE_INTERVAL ) {
+	__timeData.accumaltedDeltaTime -= FIXED_UPDATE_INTERVAL;
+	//TODO log if accumaltedDeltaTime is large
 	return true;
     }
     return false;
+}
+
+
+void updateTick() {
+    __timeData.currentTick++;
+}
+
+void initTime() {
+    clock_t now = clock();
+    __timeData.lastClock = now;
+    __timeData.startClock = now;
+
 }

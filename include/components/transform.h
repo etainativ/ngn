@@ -1,5 +1,5 @@
 #include <glm/glm.hpp>
 
-struct translation {
+struct transform {
     glm::mat4x4 value;
 };

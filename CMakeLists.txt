@@ -23,7 +23,7 @@ SET(CMAKE_BUILD_TYPE DEBUG)
 SET(CMAKE_CXX_FLAGS_DEBUG "-Wall -g -ggdb3")
 SET(CMAKE_CXX_FLAGS_RELEASE "-Wall -O3")
 
-SET(CLIENT clinet)
+SET(CLIENT client)
 add_subdirectory(protobufs)
 add_subdirectory(srcs/engine)
 add_subdirectory(srcs/systems)

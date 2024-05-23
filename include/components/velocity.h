@@ -2,13 +2,8 @@
 #include <glm/vec3.hpp>
 
 
-struct velocity2D {
-    glm::vec2 velocity;
-};
-
-
-struct velocity3D {
-    glm::vec3 velocity;
+struct velocity {
+    glm::vec3 value;
 };
 
 

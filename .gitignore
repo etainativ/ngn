@@ -1,3 +1,5 @@
 
 build
+winbuild
+external
 compile_commands.json
