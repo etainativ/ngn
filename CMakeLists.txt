@@ -9,6 +9,7 @@ cmake_minimum_required(VERSION 3.10)
 project(swe)
 
 include_directories(include)
+include_directories(external/glm)
 include_directories(external/imgui)
 include_directories(external/tinygltf)
 include_directories(external/entt/src)

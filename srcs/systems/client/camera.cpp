@@ -1,7 +1,6 @@
 #include "engine/system.h"
 #include "engine/camera.h"
 
-#include <X11/X.h>
 #include <entt/entt.hpp>
 #include <GLFW/glfw3.h>
 #include <glm/ext/quaternion_transform.hpp>
