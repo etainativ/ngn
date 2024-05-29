@@ -25,19 +25,22 @@ struct RenderData {
     uint32_t indicesCount;
 };
 
-struct FrameData {
-    VkCommandBuffer commandBuffer;
-    VkCommandPool commandPool;
-    VkSemaphore swapchainSemaphore, renderSemaphore;
-    VkFence renderFence;
-};
-
 struct Image {
     VkImage image;
     VkImageView view;
     VmaAllocation allocation;
     VkExtent3D imageExtent;
     VkFormat imageFormat;
+};
+
+struct FrameData {
+    VkCommandBuffer commandBuffer;
+    VkCommandPool commandPool;
+    VkSemaphore swapchainSemaphore, renderSemaphore;
+    VkFence renderFence;
+    Image drawImage;
+    Image depthImage;
+
 };
 
 struct DrawContext {
@@ -93,14 +96,12 @@ class Renderer {
 	// Formats
 	VkFormat depthFormat;
 	VkFormat stencilFormat;
+	VkFormat imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 
 	VkQueue graphicsQueue;
 	uint32_t graphicsQueueFamily;
 
 	FrameData frames[FRAME_OVERLAP];
-	Image drawImage;
-	Image depthImage;
-
 	std::deque<std::function<void()>> deletors;
 	void onDestruct(std::function<void()>&& function) {
 		deletors.push_back(function); }
@@ -119,7 +120,8 @@ class Renderer {
 	void initFormats();
 	void initSwapchain();
 	void initFrameData();
-	void initImages();
+	void initDrawImage(Image *image);
+	void initDepthImage(Image *image);
 	void initImCommand();
 	void initImgui();
 	void destroySwapchain();

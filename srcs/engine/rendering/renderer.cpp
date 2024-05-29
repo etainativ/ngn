@@ -9,16 +9,14 @@
 //bootstrap library
 #include "VkBootstrap.h"
 
-// imgui
-#include "imgui.h"
-#include "backends/imgui_impl_glfw.h"
-#include "backends/imgui_impl_vulkan.h"
+#include "engine/rendering/vulkanInitilizers.h"
 
-#ifdef DEBUG
-const bool bUseValidationLayers = true;
-#else
+// imgui
+#include <imgui.h>
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_vulkan.h>
+
 const bool bUseValidationLayers = false;
-#endif
 
 const VkBool32 wait = 1000000000;
 
@@ -132,7 +130,7 @@ void transition_image(VkCommandBuffer cmd, VkImage image, VkImageLayout currentL
     imageBarrier.oldLayout = currentLayout;
     imageBarrier.newLayout = newLayout;
 
-    VkImageAspectFlags aspectMask = (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    VkImageAspectFlags aspectMask = (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL) ? VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
 
     VkImageSubresourceRange subImage {};
     subImage.aspectMask = aspectMask;
@@ -172,7 +170,6 @@ Renderer::Renderer(GLFWwindow *window) {
     initFormats();
     initSwapchain();
     initFrameData();
-    initImages();
     initImCommand();
     initImgui();
 }
@@ -307,16 +304,16 @@ void Renderer::destroySwapchain()
 
 void Renderer::initFrameData()
 {
-    //create a command pool for commands submitted to the graphics queue.
-    //we also want the pool to allow for resetting of individual command buffers
-    VkCommandPoolCreateInfo commandPoolInfo =  {};
-    commandPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    commandPoolInfo.pNext = nullptr;
-    commandPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    commandPoolInfo.queueFamilyIndex = graphicsQueueFamily;
-
     for (FrameData &frame : frames)
     {
+	//create a command pool for commands submitted to the graphics queue.
+	//we also want the pool to allow for resetting of individual command buffers
+	VkCommandPoolCreateInfo commandPoolInfo =  {};
+	commandPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	commandPoolInfo.pNext = nullptr;
+	commandPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	commandPoolInfo.queueFamilyIndex = graphicsQueueFamily;
+
 	VK_CHECK(vkCreateCommandPool(device, &commandPoolInfo, nullptr, &frame.commandPool));
 
 	// allocate the default command buffer that we will use for rendering
@@ -344,26 +341,27 @@ void Renderer::initFrameData()
 	onDestruct([&]() { vkDestroySemaphore(device, frame.swapchainSemaphore, pAllocator);});
 	onDestruct([&]() { vkDestroyFence(device, frame.renderFence, pAllocator);});
 	onDestruct([&]() { vkDestroyCommandPool(device, frame.commandPool, pAllocator);});
+
+	initDrawImage(&frame.drawImage);
+	initDepthImage(&frame.depthImage);
     }
 
 }
 
 
-void Renderer::initImages() {
+void Renderer::initDrawImage(Image *image) {
     int width, height;
     glfwGetWindowSize(window, &width, &height);
     VkExtent3D drawImageExtent = { (uint32_t)width, (uint32_t)height, 1 };
 
     //hardcoding the draw format to 32 bit float
-    drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-    drawImage.imageExtent = drawImageExtent;
+    image->imageFormat = imageFormat;
+    image->imageExtent = drawImageExtent;
 
-    VkImageCreateInfo imageCI = {};
-    imageCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageCI.pNext = nullptr;
+    VkImageCreateInfo imageCI = vk::init::imageCreateInfo();
     imageCI.imageType = VK_IMAGE_TYPE_2D;
-    imageCI.format = drawImage.imageFormat;
-    imageCI.extent = drawImage.imageExtent;
+    imageCI.format = image->imageFormat;
+    imageCI.extent = image->imageExtent;
     imageCI.mipLevels = 1;
     imageCI.arrayLayers = 1;
 
@@ -383,60 +381,67 @@ void Renderer::initImages() {
     rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     //allocate and create the image
-    VK_CHECK(vmaCreateImage(allocator, &imageCI, &rimg_allocinfo, &drawImage.image, &drawImage.allocation, nullptr));
-    onDestruct([&]() {vmaDestroyImage(allocator, drawImage.image, drawImage.allocation);});
+    VK_CHECK(vmaCreateImage(allocator, &imageCI, &rimg_allocinfo, &image->image, &image->allocation, nullptr));
+    onDestruct([&]() {vmaDestroyImage(allocator, image->image, image->allocation);});
 
-    VkImageViewCreateInfo imageViewCI = {};
-    imageViewCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    imageViewCI.pNext = nullptr;
-
+    VkImageViewCreateInfo imageViewCI = vk::init::imageViewCreateInfo();
     imageViewCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    imageViewCI.image = drawImage.image;
-    imageViewCI.format = drawImage.imageFormat;
+    imageViewCI.image = image->image;
+    imageViewCI.format = image->imageFormat;
     imageViewCI.subresourceRange.baseMipLevel = 0;
     imageViewCI.subresourceRange.levelCount = 1;
     imageViewCI.subresourceRange.baseArrayLayer = 0;
     imageViewCI.subresourceRange.layerCount = 1;
     imageViewCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
-    VK_CHECK(vkCreateImageView(device, &imageViewCI, pAllocator, &drawImage.view));
-    onDestruct([=]() { vkDestroyImageView(device, drawImage.view, pAllocator); });
+    VK_CHECK(vkCreateImageView(device, &imageViewCI, pAllocator, &image->view));
+    onDestruct([=]() { vkDestroyImageView(device, image->view, pAllocator); });
+}
 
-    depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
-    depthImage.imageExtent = drawImageExtent;
+
+void Renderer::initDepthImage(Image *image) {
+    int width, height;
+    glfwGetWindowSize(window, &width, &height);
+    VkExtent3D drawImageExtent = { (uint32_t)width, (uint32_t)height, 1 };
+
+    //hardcoding the draw format to 32 bit float
+    image->imageFormat = depthFormat;
+    image->imageExtent = drawImageExtent;
 
     VkImageCreateInfo depthCI = {};
     depthCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     depthCI.pNext = nullptr;
     depthCI.imageType = VK_IMAGE_TYPE_2D;
-    depthCI.format = depthImage.imageFormat;
-    depthCI.extent = depthImage.imageExtent;
+    depthCI.format = image->imageFormat;
+    depthCI.extent = image->imageExtent;
     depthCI.mipLevels = 1;
     depthCI.arrayLayers = 1;
 
     //for MSAA. we will not be using it by default, so default it to 1 sample per pixel.
     depthCI.samples = VK_SAMPLE_COUNT_1_BIT;
 
+    //for the draw image, we want to allocate it from gpu local memory
+    VmaAllocationCreateInfo rimg_allocinfo = {};
+    rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
     //optimal tiling, which means the image is stored on the best gpu format
     depthCI.tiling = VK_IMAGE_TILING_OPTIMAL;
     depthCI.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    VK_CHECK(vmaCreateImage(allocator, &depthCI, &rimg_allocinfo, &depthImage.image, &depthImage.allocation, nullptr));
-    onDestruct([&]() {vmaDestroyImage(allocator, depthImage.image, depthImage.allocation);});
+    VK_CHECK(vmaCreateImage(allocator, &depthCI, &rimg_allocinfo, &image->image, &image->allocation, nullptr));
+    onDestruct([&]() {vmaDestroyImage(allocator, image->image, image->allocation);});
 
-    VkImageViewCreateInfo depthViewCI = {};
-    depthViewCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    depthViewCI.pNext = nullptr;
-
+    VkImageViewCreateInfo depthViewCI = vk::init::imageViewCreateInfo();
     depthViewCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
     depthViewCI.subresourceRange.baseMipLevel = 0;
     depthViewCI.subresourceRange.levelCount = 1;
     depthViewCI.subresourceRange.baseArrayLayer = 0;
     depthViewCI.subresourceRange.layerCount = 1;
     depthViewCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    depthViewCI.image = depthImage.image;
-    depthViewCI.format = depthImage.imageFormat;
-    VK_CHECK(vkCreateImageView(device, &depthViewCI, pAllocator, &depthImage.view));
-    onDestruct([&]() { vkDestroyImageView(device, depthImage.view, pAllocator); });
+    depthViewCI.image = image->image;
+    depthViewCI.format = image->imageFormat;
+    VK_CHECK(vkCreateImageView(device, &depthViewCI, pAllocator, &image->view));
+    onDestruct([&]() { vkDestroyImageView(device, image->view, pAllocator); });
 }
 
 
@@ -491,8 +496,8 @@ void Renderer::initImgui() {
     pipelineRenderingCI.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
     pipelineRenderingCI.viewMask = 0;
     pipelineRenderingCI.colorAttachmentCount = 1;
-    pipelineRenderingCI.pColorAttachmentFormats = &drawImage.imageFormat;
-    pipelineRenderingCI.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
+    pipelineRenderingCI.pColorAttachmentFormats = &imageFormat;
+    pipelineRenderingCI.depthAttachmentFormat = depthFormat;
 
     // this initializes imgui for Vulkan
     ImGui_ImplVulkan_InitInfo initInfo = {};
@@ -610,7 +615,6 @@ void Renderer::presentImage(
     submitInfo.pCommandBufferInfos = &commandBufferSubmitInfo;
 
     VK_CHECK(vkQueueSubmit2(graphicsQueue, 1, &submitInfo, currFrame.renderFence));
-
     // present
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -622,10 +626,14 @@ void Renderer::presentImage(
     presentInfo.pImageIndices = &swapchainImageIndex;
 
     VK_CHECK(vkQueuePresentKHR(graphicsQueue, &presentInfo));
+
 }
+
 
 VkCommandBuffer Renderer::startDraw() {
     FrameData& currFrame = frames[frameNumber % FRAME_OVERLAP];
+    Image& drawImage = currFrame.drawImage;
+    Image& depthImage = currFrame.depthImage;
 
     VK_CHECK(vkWaitForFences(device, 1, &currFrame.renderFence, true, wait));
     VK_CHECK(vkResetFences(device, 1, &currFrame.renderFence));
@@ -638,11 +646,7 @@ VkCommandBuffer Renderer::startDraw() {
     VK_CHECK(vkResetCommandBuffer(cmd, 0));
 
     //begin the command buffer recording. We will use this command buffer exactly once, so we want to let vulkan know that
-    VkCommandBufferBeginInfo cmdBeginInfo {};
-    cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    cmdBeginInfo.pNext = nullptr;
-    cmdBeginInfo.pInheritanceInfo = nullptr;
-    cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VkCommandBufferBeginInfo cmdBeginInfo = vk::init::cmdBeginInfo();
 
     //start the command buffer recording
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
@@ -652,9 +656,7 @@ VkCommandBuffer Renderer::startDraw() {
     transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
     //make a clear-color from frame number. This will flash with a 120 frame period.
-    VkClearColorValue clearValue;
-    float flash = glm::abs(sin(frameNumber / 120.f));
-    clearValue = { { 0.0f, 0.0f, flash, 1.0f } };
+    VkClearColorValue clearValue = { { 0.1f, 0.1f, 0.1f, 1.0f } };
 
     VkImageSubresourceRange clearRange{};
     clearRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -702,6 +704,7 @@ VkCommandBuffer Renderer::startDraw() {
     renderInfo.pStencilAttachment = nullptr;
 
     transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    transition_image(cmd, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL);
     vkCmdBeginRendering(cmd, &renderInfo);
     return cmd;
 }
@@ -738,6 +741,8 @@ void Renderer::draw(
 	glm::mat4x4 transform)
 {
     auto meshData = glftObj->meshData;
+    FrameData& currFrame = frames[frameNumber % FRAME_OVERLAP];
+    Image& drawImage = currFrame.drawImage;
     //set dynamic viewport and scissor
     VkViewport viewport = {};
     viewport.x = 0;
@@ -769,13 +774,14 @@ void Renderer::finishDraw(VkCommandBuffer cmd) {
 
     vkCmdEndRendering(cmd);
 
+    FrameData& currFrame = frames[frameNumber % FRAME_OVERLAP];
+    Image& drawImage = currFrame.drawImage;
     VkExtent2D imageExtent = {
 	.width = drawImage.imageExtent.width,
 	.height = drawImage.imageExtent.height};
 
     //request image from the swapchain
     uint32_t swapchainImageIndex;
-    FrameData& currFrame = frames[frameNumber % FRAME_OVERLAP];
     VK_CHECK(vkAcquireNextImageKHR(device, swapchain, wait, currFrame.swapchainSemaphore, nullptr, &swapchainImageIndex));
 
     //transition the draw image and the swapchain image into their correct transfer layouts
@@ -886,8 +892,8 @@ void Renderer::unloadMesh(RendererMeshData* mesh) {
 }
 
 void Renderer::loadPipeline(Pipeline::Pipeline& pipeline) {
-    Pipeline::setColorAttachment(pipeline, drawImage.imageFormat);
-    pipeline.renderInfo.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
+    Pipeline::setColorAttachment(pipeline, imageFormat);
+    pipeline.renderInfo.depthAttachmentFormat = depthFormat;
     Pipeline::createPipeline(pipeline, device, pAllocator);
 }
 
