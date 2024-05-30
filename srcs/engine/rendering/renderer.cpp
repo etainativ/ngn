@@ -636,22 +636,7 @@ VkCommandBuffer Renderer::startDraw() {
     VkCommandBufferBeginInfo cmdBeginInfo = vk::init::cmdBeginInfo();
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
-    VkImageMemoryBarrier2 imageBarrier = vk::init::createImageMemoryBarrier2(
-	    drawImage.image,
-	    VK_IMAGE_LAYOUT_UNDEFINED,
-	    VK_IMAGE_LAYOUT_GENERAL,
-	    VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-	    VK_ACCESS_2_MEMORY_WRITE_BIT,
-	    VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-	    VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
-	    {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
-
-    VkDependencyInfo depInfo {};
-    depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-    depInfo.pNext = nullptr;
-    depInfo.imageMemoryBarrierCount = 1;
-    depInfo.pImageMemoryBarriers = &imageBarrier;
-    vkCmdPipelineBarrier2(cmd, &depInfo);
+    transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
     //make a clear-color from frame number. This will flash with a 120 frame period.
     VkClearColorValue clearValue = { { 0.1f, 0.1f, 0.1f, 1.0f } };
@@ -695,7 +680,7 @@ VkCommandBuffer Renderer::startDraw() {
     renderInfo.pStencilAttachment = nullptr;
 
     transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    transition_image(cmd, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL);
+    //transition_image(cmd, depthImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL);
     vkCmdBeginRendering(cmd, &renderInfo);
     return cmd;
 }
@@ -756,9 +741,9 @@ void Renderer::draw(
 
 
 void Renderer::finishDraw(VkCommandBuffer cmd) {
-    vkCmdEndRendering(cmd);
-
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+
+    vkCmdEndRendering(cmd);
 
     FrameData& currFrame = frames[frameNumber % FRAME_OVERLAP];
     Image& drawImage = currFrame.drawImage;
@@ -782,10 +767,11 @@ void Renderer::finishDraw(VkCommandBuffer cmd) {
     // set swapchain image layout to Present so we can draw it
     transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
-    presentImage(cmd, currFrame, swapchainImageIndex);
-
     //finalize the command buffer (we can no longer add commands, but it can now be executed)
     VK_CHECK(vkEndCommandBuffer(cmd));
+
+    presentImage(cmd, currFrame, swapchainImageIndex);
+
 
     //increase the number of frames drawn
     frameNumber++;

@@ -32,7 +32,7 @@ void inputsSystemInit(entt::registry *entities) {
 }
 
 void inputsSystemUpdate(entt::registry *entities) {
-    uint64_t *currentInputs = inputBuffer + getCurrentTick();
+    uint64_t *currentInputs = inputBuffer + (getCurrentTick() % INPUT_BUFFER_SIZE);
     *currentInputs = 0;
     for (auto key : keysMapping) {
 	if (glfwGetKey(__window, key.first) == GLFW_PRESS) {

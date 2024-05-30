@@ -30,7 +30,7 @@ add_subdirectory(srcs/engine)
 add_subdirectory(srcs/systems)
 add_subdirectory(srcs/networking)
 add_subdirectory(srcs/utils)
-add_subdirectory(external/imgui)
+add_subdirectory(external) # imgui
 add_subdirectory(external/glfw)
 
 add_executable(${CLIENT} srcs/client.cpp)
