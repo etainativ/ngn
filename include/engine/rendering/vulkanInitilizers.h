@@ -47,15 +47,16 @@ namespace vk {
 	    return imageSubresourceRange;
 	}
 
-	inline VkDependencyInfo createDependencuInfo(
-		VkImage               image,
-		VkImageLayout         currentLayout,
-		VkImageLayout         newLayout,
-		VkPipelineStageFlags2 srcStageMask,
-		VkAccessFlags2        srcAccessMask,
-		VkPipelineStageFlags2 dstStageMask,
-		VkAccessFlags2        dstAccessMask,
-		VkImageSubresourceRange subresourceRange) {
+	inline VkImageMemoryBarrier2 createImageMemoryBarrier2(
+		VkImage                 image,
+		VkImageLayout           currentLayout,
+		VkImageLayout           newLayout,
+		VkPipelineStageFlags2   srcStageMask,
+		VkAccessFlags2          srcAccessMask,
+		VkPipelineStageFlags2   dstStageMask,
+		VkAccessFlags2          dstAccessMask,
+		VkImageSubresourceRange subresourceRange
+		) {
 
 	    VkImageMemoryBarrier2 imageBarrier = {};
 	    imageBarrier.sType                 = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -68,13 +69,8 @@ namespace vk {
 	    imageBarrier.newLayout             = newLayout;
 	    imageBarrier.subresourceRange      = subresourceRange;
 	    imageBarrier.image                 = image;
+	    return imageBarrier;
 
-	    VkDependencyInfo depInfo        = {};
-	    depInfo.sType                   = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-	    depInfo.pNext                   = nullptr;
-	    depInfo.imageMemoryBarrierCount = 1;
-	    depInfo.pImageMemoryBarriers    = &imageBarrier;
-	    return depInfo;
 
 	}
         inline VkCommandPoolCreateInfo commandPoolCreateInfo(

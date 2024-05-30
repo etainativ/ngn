@@ -16,7 +16,7 @@
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
 
-const bool bUseValidationLayers = false;
+const bool bUseValidationLayers = true;
 
 const VkBool32 wait = 1000000000;
 
@@ -636,7 +636,22 @@ VkCommandBuffer Renderer::startDraw() {
     VkCommandBufferBeginInfo cmdBeginInfo = vk::init::cmdBeginInfo();
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
-    transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+    VkImageMemoryBarrier2 imageBarrier = vk::init::createImageMemoryBarrier2(
+	    drawImage.image,
+	    VK_IMAGE_LAYOUT_UNDEFINED,
+	    VK_IMAGE_LAYOUT_GENERAL,
+	    VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+	    VK_ACCESS_2_MEMORY_WRITE_BIT,
+	    VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+	    VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
+	    {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1});
+
+    VkDependencyInfo depInfo {};
+    depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    depInfo.pNext = nullptr;
+    depInfo.imageMemoryBarrierCount = 1;
+    depInfo.pImageMemoryBarriers = &imageBarrier;
+    vkCmdPipelineBarrier2(cmd, &depInfo);
 
     //make a clear-color from frame number. This will flash with a 120 frame period.
     VkClearColorValue clearValue = { { 0.1f, 0.1f, 0.1f, 1.0f } };
