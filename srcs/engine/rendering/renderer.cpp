@@ -308,12 +308,7 @@ void Renderer::initFrameData()
     {
 	//create a command pool for commands submitted to the graphics queue.
 	//we also want the pool to allow for resetting of individual command buffers
-	VkCommandPoolCreateInfo commandPoolInfo =  {};
-	commandPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	commandPoolInfo.pNext = nullptr;
-	commandPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-	commandPoolInfo.queueFamilyIndex = graphicsQueueFamily;
-
+	VkCommandPoolCreateInfo commandPoolInfo = vk::init::commandPoolCreateInfo(graphicsQueueFamily);
 	VK_CHECK(vkCreateCommandPool(device, &commandPoolInfo, nullptr, &frame.commandPool));
 
 	// allocate the default command buffer that we will use for rendering
@@ -453,10 +448,7 @@ void Renderer::initImCommand() {
     vkCreateFence(device, &fenceCI, pAllocator, &immFence);
     onDestruct([&](){vkDestroyFence(device, immFence, pAllocator);});
 
-    VkCommandPoolCreateInfo commandPoolCI = {};
-    commandPoolCI.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    commandPoolCI.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    commandPoolCI.queueFamilyIndex = graphicsQueueFamily;
+    VkCommandPoolCreateInfo commandPoolCI = vk::init::commandPoolCreateInfo(graphicsQueueFamily);
     vkCreateCommandPool(device, &commandPoolCI, pAllocator, &immCommandPool);
     onDestruct([&](){vkDestroyCommandPool(device, immCommandPool, pAllocator);});
 
@@ -638,34 +630,18 @@ VkCommandBuffer Renderer::startDraw() {
     VK_CHECK(vkWaitForFences(device, 1, &currFrame.renderFence, true, wait));
     VK_CHECK(vkResetFences(device, 1, &currFrame.renderFence));
 
-    //naming it cmd for shorter writing
     VkCommandBuffer cmd = currFrame.commandBuffer;
-
-    // now that we are sure that the commands finished executing, we can safely
-    // reset the command buffer to begin recording again.
     VK_CHECK(vkResetCommandBuffer(cmd, 0));
 
-    //begin the command buffer recording. We will use this command buffer exactly once, so we want to let vulkan know that
     VkCommandBufferBeginInfo cmdBeginInfo = vk::init::cmdBeginInfo();
-
-    //start the command buffer recording
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
-    // transition our main draw image into general layout so we can write into it
-    // we will overwrite it all so we dont care about what was the older layout
     transition_image(cmd, drawImage.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
     //make a clear-color from frame number. This will flash with a 120 frame period.
     VkClearColorValue clearValue = { { 0.1f, 0.1f, 0.1f, 1.0f } };
 
-    VkImageSubresourceRange clearRange{};
-    clearRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    clearRange.baseMipLevel = 0;
-    clearRange.levelCount = VK_REMAINING_MIP_LEVELS;
-    clearRange.baseArrayLayer = 0;
-    clearRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
-
-    //clear image
+    VkImageSubresourceRange clearRange = vk::init::imageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
     vkCmdClearColorImage(cmd, drawImage.image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
 
     // DRAWING IMGUI
@@ -754,12 +730,7 @@ void Renderer::draw(
 
     vkCmdSetViewport(cmd, 0, 1, &viewport);
 
-    VkRect2D scissor = {};
-    scissor.offset.x = 0;
-    scissor.offset.y = 0;
-    scissor.extent.width = drawImage.imageExtent.width;
-    scissor.extent.height = drawImage.imageExtent.height;
-
+    VkRect2D scissor = vk::init::createRect2D(drawImage.imageExtent);
     vkCmdSetScissor(cmd, 0, 1, &scissor);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->vkPipeline);
     vkCmdBindIndexBuffer(cmd, meshData->indicesBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
@@ -770,9 +741,9 @@ void Renderer::draw(
 
 
 void Renderer::finishDraw(VkCommandBuffer cmd) {
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
-
     vkCmdEndRendering(cmd);
+
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 
     FrameData& currFrame = frames[frameNumber % FRAME_OVERLAP];
     Image& drawImage = currFrame.drawImage;
@@ -796,10 +767,10 @@ void Renderer::finishDraw(VkCommandBuffer cmd) {
     // set swapchain image layout to Present so we can draw it
     transition_image(cmd, swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
+    presentImage(cmd, currFrame, swapchainImageIndex);
+
     //finalize the command buffer (we can no longer add commands, but it can now be executed)
     VK_CHECK(vkEndCommandBuffer(cmd));
-
-    presentImage(cmd, currFrame, swapchainImageIndex);
 
     //increase the number of frames drawn
     frameNumber++;
