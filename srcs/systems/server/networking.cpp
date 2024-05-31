@@ -4,6 +4,7 @@
 #include "networking/rpc.h"
 #include "protobufs/msgs.pb.h"
 #include "protobufs/rpc.pb.h"
+#include "logging/logger.h"
 
 
 Server *networkServer;
@@ -11,11 +12,11 @@ typedef std::map<token_t, inFlightRPCMessages_t> serverInFlightRPCMessages_t;
 serverInFlightRPCMessages_t inFlightRPCMessages;
 
 int tokenValidator(token_t token) {
-    return 0;
+    return 1;
 }
 
 void initServerNetworkSystem(entt::registry *entities) {
-    networkServer = serverInit(SERVER_PORT, tokenValidator);
+    networkServer = serverInit(SERVER_PORT, nullptr);
     if (networkServer == nullptr) {
 	// TODO log
 	abort();
@@ -38,7 +39,26 @@ void removeEntry(token_t token, uint32_t msgId) {
 }
 
 
+void sendMsg(NetworkMessage &msg, token_t token) {
+    size_t size = msg.ByteSizeLong();
+    void *data = new char[size];
+    if (msg.SerializeToArray(data, size)) {
+	Datagram dg = { .size = size, .data = data };
+       	serverSend(networkServer, dg, token);
+    }
+}
+
+
 void initPlayer(token_t token) {
+}
+
+
+void ackMessage(token_t token, uint32_t msgId) {
+    NetworkMessage msg;
+    NetworkRPCMessage *rpc = msg.mutable_rpcmessage();
+    rpc->set_msgid(msgId);
+    rpc->mutable_messageack();
+    sendMsg(msg, token);
 }
 
 
@@ -48,12 +68,14 @@ void handleRPCMessage(const NetworkRPCMessage &rpc, token_t token) {
 	    removeEntry(token, rpc.msgid());
 	    break;
 	case NetworkRPCMessage::kClientConnect:
+	    DEBUG("Player connected msgId %d\n", rpc.msgid());
 	    initPlayer(token);
 	    break;
 	default:
 	    // TODO log error
 	    break;
     };
+    ackMessage(token, rpc.msgid());
 }
 
 
@@ -84,7 +106,7 @@ void updateServerNetworkSystem(entt::registry* entities) {
 void destroyServerNetworkSystem(entt::registry* entities) {}
 
 
-struct System ServerNetworkSystem = {
+struct System serverNetworkSystem = {
     .name = "NetworkSystem",
     .stats = {},
     .init = initServerNetworkSystem,

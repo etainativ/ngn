@@ -1,5 +1,9 @@
-#include "engine/rendering/renderer.h"
+#include "rendering/renderer.h"
 #include "engine/pipeline.h"
+
+#include "VkBootstrap.h"
+#include "rendering/vulkanInitilizers.h"
+
 #include <glm/fwd.hpp>
 #include <vulkan/vulkan_core.h>
 
@@ -7,9 +11,6 @@
 #include "vk_mem_alloc.h"
 
 //bootstrap library
-#include "VkBootstrap.h"
-
-#include "engine/rendering/vulkanInitilizers.h"
 
 // imgui
 #include <imgui.h>

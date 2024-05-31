@@ -157,10 +157,10 @@ int serverRecv(struct Server *server, struct Datagram *data, token_t *token) {
 	*token = header->token;
 	data->size = header->dataSize;
 	data->data = header + 1;
-	return 0;
+	return 1;
     }
     data->data = nullptr;
-    return 1;
+    return 0;
 }
 
 

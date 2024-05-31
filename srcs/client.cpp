@@ -1,6 +1,4 @@
 #include "engine/engine.h"
-
-//systems
 #include "systems/systems.h"
 
 int main() {

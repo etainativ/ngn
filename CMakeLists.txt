@@ -25,8 +25,10 @@ SET(CMAKE_CXX_FLAGS_DEBUG "-Wall -g -ggdb3")
 SET(CMAKE_CXX_FLAGS_RELEASE "-Wall -O3")
 
 SET(CLIENT client)
+SET(SERVER server)
 add_subdirectory(protobufs)
 add_subdirectory(srcs/engine)
+add_subdirectory(srcs/rendering)
 add_subdirectory(srcs/systems)
 add_subdirectory(srcs/networking)
 add_subdirectory(srcs/utils)
@@ -34,11 +36,11 @@ add_subdirectory(external) # imgui
 add_subdirectory(external/glfw)
 
 add_executable(${CLIENT} srcs/client.cpp)
-target_link_libraries(${CLIENT} client_systems messages networking engine)
+target_link_libraries(${CLIENT} client_systems messages rendering networking engine)
 add_custom_command(TARGET ${CLIENT} POST_BUILD
 	COMMAND "${CMAKE_COMMAND}" -E copy_directory ../models models
 	COMMAND "${CMAKE_COMMAND}" -E copy_directory ../shaders shaders
 )
 
-add_executable(TransportTester tests/networking.cpp)
-target_link_libraries(TransportTester networking)
+add_executable(${SERVER} srcs/server.cpp)
+target_link_libraries(${SERVER} server_systems messages networking engine)

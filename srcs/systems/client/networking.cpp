@@ -13,7 +13,6 @@ Client *client;
 uint32_t __msgId = 10;
 
 inFlightRPCMessages_t inFlightRPCMessages;
-google::protobuf::Arena rpcArena;
 
 void handleRPCMessage(const NetworkRPCMessage &rpc) {
     switch (rpc.networkRPCMessageType_case()) {

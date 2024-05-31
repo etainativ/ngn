@@ -1,7 +1,7 @@
+#include "datatypes.h"
 #include <stdint.h>
 
 typedef unsigned long msgsize_t;
-typedef uint64_t token_t;
 
 struct Client;
 struct Server;

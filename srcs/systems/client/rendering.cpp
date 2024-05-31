@@ -1,8 +1,8 @@
 #include "engine/system.h"
 #include "engine/glft_object.h"
 #include "engine/pipeline.h"
-#include "engine/rendering/renderer.h"
 #include "engine/camera.h"
+#include "rendering/renderer.h"
 
 #include "components/instancer.h"
 #include "components/transform.h"
