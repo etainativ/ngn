@@ -14,7 +14,7 @@
 extern bool isMainLoopRunning;
 extern GLFWwindow* __window;
 
-uint64_t *inputBuffer;
+uint64_t inputBuffer[INPUT_BUFFER_SIZE] = {0};
 
 
 // max keys should be 64 after
@@ -27,13 +27,19 @@ std::map<int, uint64_t> keysMapping {
 };
 
 
-void inputsSystemInit(entt::registry *entities) {
-    inputBuffer = new uint64_t[INPUT_BUFFER_SIZE];
+uint64_t *getCurrentInput() {
+    return &inputBuffer[getCurrentTick() % INPUT_BUFFER_SIZE];
 }
 
+
+void resetCurrentInput() {
+    uint64_t *currentInput = getCurrentInput();
+    *currentInput = 0;
+}
+
+
 void inputsSystemUpdate(entt::registry *entities) {
-    uint64_t *currentInputs = inputBuffer + (getCurrentTick() % INPUT_BUFFER_SIZE);
-    *currentInputs = 0;
+    uint64_t *currentInputs = getCurrentInput();
     for (auto key : keysMapping) {
 	if (glfwGetKey(__window, key.first) == GLFW_PRESS) {
 	    *currentInputs |= key.second;
@@ -43,9 +49,9 @@ void inputsSystemUpdate(entt::registry *entities) {
 
 
 void inputsSystemFixedUpdate(entt::registry *entities) {
+    uint64_t currentInputs = *getCurrentInput();
     auto view = entities->view<playersEntity, transform, angularVelocity2D, velocity>();
     for (auto [tag, transform, angular, vel] : view.each()) {
-	uint64_t currentInputs = inputBuffer[getCurrentTick()];
 	float delta = float(FIXED_UPDATE_INTERVAL);
 	glm::vec3 up = glm::normalize(glm::vec3(
 		-transform.value[0][0], // WHY????
@@ -65,9 +71,9 @@ void inputsSystemFixedUpdate(entt::registry *entities) {
 	}
     }
 
-    uint64_t currentInputs = inputBuffer[getCurrentTick()];
     if (currentInputs & keysMapping[GLFW_KEY_ESCAPE])
 	isMainLoopRunning = false;
+    resetCurrentInput();
 
 }
 
@@ -75,7 +81,7 @@ void inputsSystemFixedUpdate(entt::registry *entities) {
 System inputsSystem {
     .name = "velocity",
     .stats = {},
-    .init = inputsSystemInit,
+    .init = nullptr,
     .update = inputsSystemUpdate,
     .fixedUpdate = inputsSystemFixedUpdate,
     .destroy = nullptr
