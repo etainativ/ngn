@@ -1,13 +1,10 @@
 #include "datatypes.h"
 #include "protobufs/rpc.pb.h"
 #include "server/networkid.h"
+#include "server/players.h"
 #include "networking/server.h"
 #include <map>
 
-
-struct PlayersData {
-    networkId_t networkid;
-};
 
 std::map<token_t, PlayersData> __playersMap;
 

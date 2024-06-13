@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+
+message Player {
+  uint64 token = 1; // Token_t
+  uint32 networkId = 2; // networkId_t
+};
+
+message DebugResponseError {};
+message DebugRequestListPlayersMessage {};
+message DebugResponseListPlayersMessage {
+  repeated Player players = 1;
+};
+
+message DebugRequestMessage {
+  oneof debugRequestMessage {
+    DebugRequestListPlayersMessage debugRequestListPlayersMessage = 1;
+  }
+}
+
+message DebugResponseMessage {
+  oneof debugResponseMessage {
+    DebugResponseListPlayersMessage debugResponseListPlayersMessage = 1;
+    DebugResponseError debugResponseError = 2;
+  }
+}
+
+message DebugMessage {
+  oneof debugMessage {
+    DebugRequestMessage debugRequestMessage = 1;
+    DebugResponseMessage debugResponseMessage = 2;
+  }
+}

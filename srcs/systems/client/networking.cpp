@@ -8,6 +8,8 @@
 #include "logging/logger.h"
 
 
+#define CLIENT_TOKEN 0x1234
+
 void handleRPCMessage(const NetworkRPCMessage &rpc) {
     switch (rpc.networkRPCMessageType_case()) {
 	case NetworkRPCMessage::kMessageAck:
@@ -54,7 +56,7 @@ void sendClientHello() {
 
 
 void initClientNetworkSystem() {
-    messageClientInit(0);
+    messageClientInit(CLIENT_TOKEN);
     sendClientHello();
 }
 

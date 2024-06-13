@@ -7,4 +7,4 @@ extern struct System clientNetworkSystem;
 extern struct System serverNetworkSystem;
 extern struct System velocitySystem;
 extern struct System inputsSystem;
-
+extern struct System serverDebugPort;
