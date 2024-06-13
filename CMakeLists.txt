@@ -32,6 +32,7 @@ add_subdirectory(srcs/rendering)
 add_subdirectory(srcs/systems)
 add_subdirectory(srcs/networking)
 add_subdirectory(srcs/utils)
+add_subdirectory(srcs/server)
 add_subdirectory(external) # imgui
 add_subdirectory(external/glfw)
 

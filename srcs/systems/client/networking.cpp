@@ -1,39 +1,31 @@
 #include "engine/system.h"
-#include "engine/time.h"
-#include "entt/entity/fwd.hpp"
-#include "networking/transport.h"
+#include "engine/entities.h"
+
+#include "networking/client.h"
 #include "networking/rpc.h"
-#include "configuration/global.h"
 #include "protobufs/msgs.pb.h"
 #include "protobufs/rpc.pb.h"
+#include "logging/logger.h"
 
-#define MAX_INFLIGHT_TICKS 60
-
-Client *client;
-uint32_t __msgId = 10;
-
-inFlightRPCMessages_t inFlightRPCMessages;
 
 void handleRPCMessage(const NetworkRPCMessage &rpc) {
     switch (rpc.networkRPCMessageType_case()) {
 	case NetworkRPCMessage::kMessageAck:
-	    if (inFlightRPCMessages.find(rpc.msgid()) != inFlightRPCMessages.end()) {
-		delete inFlightRPCMessages[rpc.msgid()].rpc;
-		inFlightRPCMessages.erase(rpc.msgid());
-	    }
+	    DEBUG("Should not get ack messages here\n");
+	    break;
+	case NetworkRPCMessage::kClientNetworkID:
+	    DEBUG("Client got networkID %d\n", rpc.clientnetworkid().netowrkid());
 	    break;
 	default:
 	    // TODO log error
 	    break;
-    };
+    }
 };
 
 
 void readMessages() {
-    Datagram data;
-    while (clientRecv(client, &data)) {
-	NetworkMessage msg;
-	msg.ParseFromArray(data.data, data.size);
+    NetworkMessage msg;
+    while (recvMsg(msg)) {
 	switch (msg.networkMessageType_case()) {
 	    case NetworkMessage::kRpcMessage:
 		handleRPCMessage(msg.rpcmessage());
@@ -53,57 +45,28 @@ void readMessages() {
 }
 
 
-void sendMsg(NetworkMessage &msg) {
-    size_t size = msg.ByteSizeLong();
-    void *data = new char[size];
-    if (msg.SerializeToArray(data, size)) {
-	Datagram dg = { .size = size, .data = data };
-       	clientSend(client, dg);
-    }
-}
-
-
-void sendRPC(NetworkRPCMessage *rpc, uint32_t msgId) {
-    rpc->set_msgid(msgId);
-    inFlightRPCMessages[msgId] = {getCurrentTick(), rpc};
-    NetworkMessage msg;
-    msg.set_allocated_rpcmessage(rpc);
-    sendMsg(msg);
-    msg.release_rpcmessage();
-}
-
 
 void sendClientHello() {
     NetworkRPCMessage *newRPC = new NetworkRPCMessage();
     newRPC->mutable_clientconnect();
-    sendRPC(newRPC, __msgId++);
+    sendRPC(newRPC);
 }
 
 
-void initClientNetworkSystem(entt::registry *entities) {
-    client = clientInit(HOSTNAME, SERVER_PORT, 0);
+void initClientNetworkSystem() {
+    messageClientInit(0);
     sendClientHello();
 }
 
 
-void retrySends() {
-    for (auto &[msgId, msgInfo] : inFlightRPCMessages) {
-	if ((getCurrentTick() - msgInfo.tickSent) > MAX_INFLIGHT_TICKS)
-	    // TODO log
-	    sendRPC(msgInfo.rpc, msgId);
-    }
-}
-
-
-void updateClientNetworkSystem(entt::registry *entities) {
+void updateClientNetworkSystem() {
     readMessages();
-    retrySends();
+    retryMsg();
 }
 
 
-void destroyClientNetworkSystem(entt::registry *entities) {
-    clientDestroy(client);
-    // clean Messages in flight
+void destroyClientNetworkSystem() {
+    messageClientDestroy();
 }
 
 

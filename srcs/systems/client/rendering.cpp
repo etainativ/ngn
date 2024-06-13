@@ -2,6 +2,7 @@
 #include "engine/glft_object.h"
 #include "engine/pipeline.h"
 #include "engine/camera.h"
+#include "engine/entities.h"
 #include "rendering/renderer.h"
 
 #include "components/instancer.h"
@@ -24,7 +25,7 @@ void resizeCallback(GLFWwindow* window, int width, int height) {
 }
 
 
-void renderingInit(entt::registry *entities) {
+void renderingInit() {
     VkExtent2D windowExtent = { 1200, 960 };
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -48,7 +49,7 @@ void renderingInit(entt::registry *entities) {
 }
 
 
-void imGuiDraw(entt::registry *entities) {
+void imGuiDraw() {
     auto view = entities->view<playersEntity, velocity, transform>();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -68,8 +69,8 @@ void imGuiDraw(entt::registry *entities) {
 }
 
 
-void renderingUpdate(entt::registry *entities) {
-    imGuiDraw(entities);
+void renderingUpdate() {
+    imGuiDraw();
     VkCommandBuffer cmd = __renderer->startDraw();
     for(auto &&[entity, rend, pos]: entities->view<renderable, transform>().each()) {
 	auto &renderData = entities->get<RenderInitDataComponent>(rend.entity);
@@ -84,7 +85,7 @@ void renderingUpdate(entt::registry *entities) {
 }
 
 
-void renderingDestroy(entt::registry *entities) {
+void renderingDestroy() {
     std::set<Pipeline::Pipeline*> pipelines;
     auto view = entities->view<RenderInitDataComponent>();
     for (const entt::entity e : view) {

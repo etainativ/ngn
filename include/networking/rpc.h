@@ -2,6 +2,9 @@
 #include "engine/time.h"
 
 
+#define MAX_INFLIGHT_TICKS 60
+
+
 struct RPCMessageData {
     tick_t tickSent;
     NetworkRPCMessage *rpc;

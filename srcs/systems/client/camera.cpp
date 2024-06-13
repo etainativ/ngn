@@ -13,7 +13,7 @@ double pos[2];
 #define POSX pos[0]
 #define POSY pos[1]
 
-void initCamera(entt::registry* entities) {
+void initCamera() {
     camera.pos = glm::vec3(0.f, 0.f, 40.f);
     camera.target = glm::vec3(0.f, 0.f, 0.f);
     camera.up = glm::vec3(0.f, 1.f, 0.f);
@@ -28,7 +28,7 @@ void initCamera(entt::registry* entities) {
 }
 
 
-void cameraUpdate(entt::registry* entities) {
+void cameraUpdate() {
     double curX, curY, dx, dy;
     glfwGetCursorPos(__window, &curX, &curY);
     if (glfwGetMouseButton(__window, GLFW_MOUSE_BUTTON_1)) {

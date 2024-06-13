@@ -1,7 +1,7 @@
 #include "engine/glft_object.h"
 #include "engine/pipeline.h"
 #include "engine/system.h"
-#include "entt/entity/fwd.hpp"
+#include "engine/entities.h"
 #include "components/instancer.h"
 #include "components/transform.h"
 #include "components/velocity.h"
@@ -25,7 +25,7 @@ void createEntity(entt::registry *entities, instanceType type) {
 }
 
 
-void instancerInit(entt::registry *entities) {
+void instancerInit() {
     __intancerShipEntity = entities->create();
 
     GlftObject::GlftObject* shipsGlftObject =
@@ -47,7 +47,7 @@ void instancerInit(entt::registry *entities) {
 }
 
 
-void instancerUpdate(entt::registry *entities) {
+void instancerUpdate() {
    auto view = entities->view<MakeInstanceComponent>();
    for (const entt::entity e : view) {
        auto &data = view.get<MakeInstanceComponent>(e);

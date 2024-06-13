@@ -1,6 +1,5 @@
 #pragma once
-#include "entt/entity/fwd.hpp"
-#include "entt/entt.hpp"
+#include <vector>
 
 
 struct SystemsData;
@@ -15,16 +14,16 @@ struct SystemStats {
 struct System {
     const char* name;
     SystemStats stats;
-    void (*init)(entt::registry*);
-    void (*update)(entt::registry*);
-    void (*fixedUpdate)(entt::registry*);
-    void (*destroy)(entt::registry*);
+    void (*init)();
+    void (*update)();
+    void (*fixedUpdate)();
+    void (*destroy)();
 };
 
 
 SystemsData *createSystems(std::vector<System*> systemsNames);
-void initSystems(SystemsData *data, entt::registry *entities);
-void destroySystems(SystemsData *data, entt::registry *entities);
-void fixedUpdateSystems(SystemsData *data, entt::registry *entities);
-void updateSystems(SystemsData *data, entt::registry *entities);
+void initSystems(SystemsData *data);
+void destroySystems(SystemsData *data);
+void fixedUpdateSystems(SystemsData *data);
+void updateSystems(SystemsData *data);
 void registerSystem(System *system);

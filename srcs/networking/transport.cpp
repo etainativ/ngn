@@ -168,3 +168,9 @@ void clientDestroy(struct Client *client) {
     close(client->fd);
     delete client;
 }
+
+
+void serverDestroy(struct Server *server) {
+    close(server->fd);
+    delete server;
+}

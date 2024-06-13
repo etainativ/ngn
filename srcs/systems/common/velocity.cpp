@@ -1,6 +1,6 @@
-#include "entt/entity/fwd.hpp"
 #include "engine/system.h"
 #include "engine/time.h"
+#include "engine/entities.h"
 #include "components/velocity.h"
 #include "components/transform.h"
 
@@ -9,7 +9,7 @@
 
 
 
-void velocityFixedUpdate(entt::registry *entities) {
+void velocityFixedUpdate() {
     // linear velocity
     {
 	auto view = entities->view<velocity, transform>();

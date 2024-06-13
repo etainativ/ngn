@@ -1,5 +1,6 @@
 #include "engine/system.h"
 #include "engine/time.h"
+#include "engine/entities.h"
 #include "components/tags.h"
 #include "components/velocity.h"
 #include "components/transform.h"
@@ -38,7 +39,7 @@ void resetCurrentInput() {
 }
 
 
-void inputsSystemUpdate(entt::registry *entities) {
+void inputsSystemUpdate() {
     uint64_t *currentInputs = getCurrentInput();
     for (auto key : keysMapping) {
 	if (glfwGetKey(__window, key.first) == GLFW_PRESS) {
@@ -48,7 +49,9 @@ void inputsSystemUpdate(entt::registry *entities) {
 }
 
 
-void inputsSystemFixedUpdate(entt::registry *entities) {
+void inputsSystemFixedUpdate() {
+    // TODO this should only write inputs into new components
+    // TODO apply input system should apply will be used both by server/client
     uint64_t currentInputs = *getCurrentInput();
     auto view = entities->view<playersEntity, transform, angularVelocity2D, velocity>();
     for (auto [tag, transform, angular, vel] : view.each()) {

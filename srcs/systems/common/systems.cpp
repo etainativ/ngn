@@ -5,33 +5,33 @@ struct System __systems_head = {
     .name = "systems head"
 };
 
-#define RUN_SYSTEMS(arg, data, entities) \
+#define RUN_SYSTEMS(arg, data) \
     for (System *system : data->systems) \
-	if ((system)->arg != nullptr) (system)->arg(entities);
+	if ((system)->arg != nullptr) (system)->arg();
 
 struct SystemsData {
     std::vector<System*> systems;
 };
 
 
-void initSystems(SystemsData *data, entt::registry *entities) {
-    RUN_SYSTEMS(init, data, entities);
+void initSystems(SystemsData *data) {
+    RUN_SYSTEMS(init, data);
 };
 
 
-void destroySystems(SystemsData *data, entt::registry *entities) {
-    RUN_SYSTEMS(destroy, data, entities);
+void destroySystems(SystemsData *data) {
+    RUN_SYSTEMS(destroy, data);
     delete data;
 };
 
 
-void updateSystems(SystemsData *data, entt::registry *entities) {
-    RUN_SYSTEMS(update, data, entities);
+void updateSystems(SystemsData *data) {
+    RUN_SYSTEMS(update, data);
 };
 
 
-void fixedUpdateSystems(SystemsData *data, entt::registry *entities) {
-    RUN_SYSTEMS(fixedUpdate, data, entities);
+void fixedUpdateSystems(SystemsData *data) {
+    RUN_SYSTEMS(fixedUpdate, data);
 };
 
 

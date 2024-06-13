@@ -3,10 +3,15 @@ syntax = "proto3";
 
 message RPCClientConnect {};
 message RPCServerAck {};
+message RPCClientNetworkID {
+  uint32 netowrkid = 1; // networkId_t
+};
+
 message NetworkRPCMessage {
-  uint32 msgid = 1;
+  uint32 msgid = 1; // msgId_t
   oneof networkRPCMessageType {
     RPCClientConnect clientConnect = 2;
-    RPCServerAck messageAck = 3;
+    RPCClientNetworkID clientNetworkID = 3;
+    RPCServerAck messageAck = 4;
   }
 }

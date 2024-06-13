@@ -1,23 +1,26 @@
+#include "engine/entities.h"
 #include "engine/engine.h"
 #include "engine/system.h"
 #include "engine/time.h"
 
+
 bool isMainLoopRunning = true;
 void run(std::vector<System *>& systems)
 {
-    entt::registry entities;
+    initEntities();
     struct SystemsData *systemsData = createSystems(systems);
-    initSystems(systemsData, &entities);
+    initSystems(systemsData);
     initTime();
     while (isMainLoopRunning)
     {
 	updateDeltaTime();
-	updateSystems(systemsData, &entities);
+	updateSystems(systemsData);
 	if (isFixedUpdate()) {
-	    fixedUpdateSystems(systemsData, &entities);
+	    fixedUpdateSystems(systemsData);
 	    updateTick();
 	};
     }
 
-    destroySystems(systemsData, &entities);
+    destroySystems(systemsData);
+    destroyEntities();
 }
